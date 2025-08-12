@@ -1,0 +1,139 @@
+# Root-level .gitignore for bizDaily project
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+backend/venv/
+backend/venv_new/
+backend/#/
+backend/but/
+backend/optional/
+backend/recommended/
+backend/env/
+backend/.venv/
+
+# Database files
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+backend/*.db-wal
+backend/*.db-shm
+backend/*.sqbpro
+
+# Node.js / React (frontend)
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# React specific
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+frontend/lerna-debug.log*
+
+# React build outputs
+frontend/build/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# React testing
+frontend/coverage/
+frontend/.nyc_output
+
+# React TypeScript
+frontend/*.tsbuildinfo
+
+# React misc
+frontend/.eslintcache
+frontend/*.tgz
+frontend/*.tar.gz
+
+# React PWA
+frontend/sw.js
+frontend/sw.js.map
+frontend/workbox-*.js
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build outputs
+build/
+dist/
+
+# API keys and secrets
+config.ini
+secrets.json
+*.key
+*.pem
+
+# Temporary files
+*.tmp
+*.temp
+
+# Package files
+*.tgz
+*.tar.gz

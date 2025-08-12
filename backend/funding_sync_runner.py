@@ -1,0 +1,3 @@
+from funding_service import bulk_save_funding_data
+
+bulk_save_funding_data()
