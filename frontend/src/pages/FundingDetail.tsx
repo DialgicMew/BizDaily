@@ -194,18 +194,18 @@ const formatFundingValue = (value: any, key: string): string => {
 // Format field names as questions
 const formatFieldQuestion = (key: string): string => {
   const questionMap: Record<string, string> = {
-    valuation: 'What is the company valuation?',
-    funding_round: 'What are the funding round details?',
-    use_of_funds: 'How will the funding be used?',
     why_problem: 'What problem is the company solving?',
     what_solution: 'What solution does the company offer?',
     how_execution: 'How does the company execute its strategy?',
     customer_segment: 'Who are the target customers?',
     founders_team_dna: 'Who are the founders and what is their background?',
     traction_snapshot: 'What traction has the company achieved?',
+    valuation: 'What is the company valuation?',
+    funding_round: 'What are the funding round details?',
+    use_of_funds: 'How will the funding be used?',
+    key_risks_open_questions: 'What are the key risks and open questions?',
     competitive_edge: 'What gives the company a competitive advantage?',
     pivots: 'Has the company made any strategic pivots?',
-    key_risks_open_questions: 'What are the key risks and open questions?',
     sources: 'What are the information sources?'
   };
   
@@ -520,6 +520,38 @@ const FundingDetail: React.FC = () => {
             <Box sx={{ width: '100%' }}>
               {Object.entries(companyDetails)
                 .filter(([key]) => !['id', 'funding_uuid', 'company_name', 'generated_on', 'created_at'].includes(key))
+                .sort(([keyA], [keyB]) => {
+                  // Define custom order for questions
+                  const customOrder = [
+                    'why_problem',
+                    'what_solution',
+                    'how_execution',
+                    'customer_segment',
+                    'founders_team_dna',
+                    'traction_snapshot',
+                    'valuation',
+                    'funding_round',
+                    'use_of_funds',
+                    'competitive_edge',
+                    'pivots',
+                    'key_risks_open_questions',                    
+                    'sources'
+                  ];
+                  const indexA = customOrder.indexOf(keyA.toLowerCase());
+                  const indexB = customOrder.indexOf(keyB.toLowerCase());
+                  
+                  // If both keys are in custom order, sort by their position
+                  if (indexA !== -1 && indexB !== -1) {
+                    return indexA - indexB;
+                  }
+                  
+                  // If only one key is in custom order, prioritize it
+                  if (indexA !== -1) return -1;
+                  if (indexB !== -1) return 1;
+                  
+                  // If neither key is in custom order, maintain original order
+                  return 0;
+                })
                 .map(([key, value], index) => (
                 <Box key={key} sx={{ mb: 4 }}>
                   <QuestionTitle>

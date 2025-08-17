@@ -469,18 +469,18 @@ const processLinksInText = (text: string): React.ReactNode => {
 // Format field names as questions (using exact same questions as FundingDetail page)
 const formatFieldQuestion = (key: string): string => {
   const questionMap: Record<string, string> = {
-    valuation: 'What is the company valuation?',
-    funding_round: 'What are the funding round details?',
-    use_of_funds: 'How will the funding be used?',
     why_problem: 'What problem is the company solving?',
     what_solution: 'What solution does the company offer?',
     how_execution: 'How does the company execute its strategy?',
     customer_segment: 'Who are the target customers?',
     founders_team_dna: 'Who are the founders and what is their background?',
     traction_snapshot: 'What traction has the company achieved?',
+    valuation: 'What is the company valuation?',
+    funding_round: 'What are the funding round details?',
+    use_of_funds: 'How will the funding be used?',
+    key_risks_open_questions: 'What are the key risks and open questions?',
     competitive_edge: 'What gives the company a competitive advantage?',
     pivots: 'Has the company made any strategic pivots?',
-    key_risks_open_questions: 'What are the key risks and open questions?',
     sources: 'What are the information sources?'
   };
   
@@ -633,20 +633,40 @@ const DailyBrief: React.FC = () => {
                   </CompanyTitle>
                   
                   {/* Company Details in Q&A Format */}
-                  {Object.entries(company)
-                    .filter(([key]) => !['CompanyName', 'company_name', 'funding_uuid', 'generated_on', 'created_at'].includes(key))
-                    .filter(([, value]) => {
-                      if (!value) return false;
-                      if (value === 'N/A' || value === 'n/a') return false;
-                      if (typeof value !== 'string') return false;
-                      return value.trim().length > 0;
-                    })
-                    .map(([key, value]) => (
-                      <React.Fragment key={key}>
-                        <QuestionTitle>{formatFieldQuestion(key)}</QuestionTitle>
-                        <AnswerText>{formatContent(value as string)}</AnswerText>
-                      </React.Fragment>
-                    ))}
+                  {(() => {
+                    // Define custom order for questions (only these will be displayed)
+                    const customOrder = [
+                      'why_problem',
+                      'what_solution',
+                      'how_execution',
+                      'customer_segment',
+                      'founders_team_dna',
+                      'traction_snapshot',
+                      'competitive_edge',
+                      'sources'
+                    ];
+                    
+                    // Filter and sort entries based on custom order
+                    return Object.entries(company)
+                      .filter(([key]) => customOrder.includes(key.toLowerCase()))
+                      .filter(([, value]) => {
+                        if (!value) return false;
+                        if (value === 'N/A' || value === 'n/a') return false;
+                        if (typeof value !== 'string') return false;
+                        return value.trim().length > 0;
+                      })
+                      .sort(([keyA], [keyB]) => {
+                        const indexA = customOrder.indexOf(keyA.toLowerCase());
+                        const indexB = customOrder.indexOf(keyB.toLowerCase());
+                        return indexA - indexB;
+                      })
+                      .map(([key, value]) => (
+                        <React.Fragment key={key}>
+                          <QuestionTitle>{formatFieldQuestion(key)}</QuestionTitle>
+                          <AnswerText>{formatContent(value as string)}</AnswerText>
+                        </React.Fragment>
+                      ));
+                  })()}
                 </CompanySection>
               ))}
             </>

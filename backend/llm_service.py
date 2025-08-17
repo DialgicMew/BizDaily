@@ -63,7 +63,7 @@ def get_company_details(company: str) -> Dict[str, Any]:
     template_prompt = f"""You are a concise venture-funding analyst.
 
 TASK  
-For the company below, craft an expanded brief based on extensive research.
+For the very recently fundedcompany below, craft an expanded brief based on extensive research.
 (Do **not** look for additional firms.)
 
 INPUT  
@@ -85,13 +85,13 @@ OUTPUT – one Markdown block per company, ≤500 words, using these delimiters 
 {{1-2 short bullets}}
 
 ---SECTION:WhyProblem---
-*60-80 words* Explain the pain point, its scale, and why it's urgent **now** (quote an industry datapoint if available).
+*100-120 words* Explain the pain point, its scale, and why it's urgent **now** (quote an industry datapoint if available).
 
 ---SECTION:WhatSolution---
-*60-80 words* Describe the product suite, flagship features, and delivery form-factor (SaaS, API, hardware, etc.).
+*100-120 words* Describe the product suite, flagship features, and delivery form-factor (SaaS, API, hardware, etc.).
 
 ---SECTION:HowExecution---
-*60-80 words* Outline the operating model—GTM, core tech, partnerships, or regulatory wedge that powers growth.
+*80-100 words* Outline the operating model—GTM, core tech, partnerships, or regulatory wedge that powers growth.
 
 ---SECTION:CustomerSegment---
 {{primary user / buyer personas}}

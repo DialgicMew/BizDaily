@@ -33,7 +33,7 @@ def single_insert(
     detail: Dict[str, Any],
     name_to_uuid: Dict[str, int],
 ) -> int:
-    company_name = detail.get("company_name")
+    company_name = detail.get("CompanyName")
     if not company_name:
         return 0  # skip malformed
     
@@ -118,30 +118,6 @@ def bulk_insert(
         conn.executemany(INSERT_SQL, rows)
 
     return len(rows)
-
-
-
-def fetch_details_for_date(conn: sqlite3.Connection, target_date_iso: str) -> List[Dict[str, Any]]:
-    """Return all company detail rows whose `generated_on` date matches *target_date_iso* (YYYY-MM-DD)."""
-
-    # Configure row factory for dict-like access
-    conn.row_factory = sqlite3.Row  # type: ignore[assignment]
-
-    cur = conn.execute(
-        """
-        SELECT *
-          FROM company_details
-         WHERE date(generated_on) = ?
-         GROUP BY company_name
-         HAVING MAX(generated_on)
-        ORDER BY company_name COLLATE NOCASE
-        """,
-        (target_date_iso,),
-    )
-
-    rows = cur.fetchall()
-    # Convert sqlite3.Row -> dict while preserving column names
-    return [dict(row) for row in rows]
 
 
 def fetch_details_by_funding_uuid(conn: sqlite3.Connection, funding_uuid: int) -> Dict[str, Any] | None:

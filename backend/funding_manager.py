@@ -97,7 +97,7 @@ def bulk_insert(conn: sqlite3.Connection, records: List[Dict[str, Any]]) -> None
     with conn:
         conn.executemany(INSERT_SQL, rows)
 
-def fetch_companies_funded_today(
+def fetch_companies_funded_on_date(
     conn: sqlite3.Connection,
     target_date_iso: str,
 ) -> Dict[str, int]:
@@ -107,7 +107,7 @@ def fetch_companies_funded_today(
         SELECT funding_uuid,
                IFNULL(company_name, funded_company_name) AS name
           FROM funding
-         WHERE date(data_created_date) = ?
+         WHERE date(funding_date) = ?
         """,
         (target_date_iso,),
     )
@@ -121,3 +121,19 @@ def fetch_companies_funded_today(
                 name_to_uuid[name] = funding_uuid
 
     return name_to_uuid
+
+def fetch_latest_funding_record(conn: sqlite3.Connection) -> Dict[str, Any] | None:
+    # Configure row factory for dict-like access
+    conn.row_factory = sqlite3.Row  # type: ignore[assignment]
+    
+    cur = conn.execute(
+        """
+        SELECT *
+          FROM funding
+         ORDER BY funding_uuid DESC
+         LIMIT 1
+        """
+    )
+    
+    row = cur.fetchone()
+    return dict(row) if row else None
