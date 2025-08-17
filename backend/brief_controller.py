@@ -21,11 +21,6 @@ async def read_daily_brief(date: Optional[str] = Query(None, description="ISO da
 
     brief = await get_daily_brief(date)
 
-    if not brief and generate_if_missing:
-        # Run create_daily_brief in executor since it's still synchronous
-        loop = asyncio.get_event_loop()
-        brief = await loop.run_in_executor(None, create_daily_brief)
-
     if not brief:
         raise HTTPException(status_code=500, detail="No brief found for the given date.")
 

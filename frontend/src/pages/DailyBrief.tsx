@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -492,8 +492,16 @@ const DailyBrief: React.FC = () => {
   const [companies, setCompanies] = useState<DailyBriefCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
+    // Prevent duplicate API calls
+    if (isFetchingRef.current) {
+      return;
+    }
+    
+    isFetchingRef.current = true;
+    
     const loadDailyBrief = async () => {
       try {
         setLoading(true);
@@ -506,10 +514,16 @@ const DailyBrief: React.FC = () => {
         setError(err instanceof Error ? err.message : 'Failed to fetch daily brief');
       } finally {
         setLoading(false);
+        isFetchingRef.current = false;
       }
     };
 
     loadDailyBrief();
+
+    // Cleanup function
+    return () => {
+      isFetchingRef.current = false;
+    };
   }, []);
 
   const handleBack = () => {
