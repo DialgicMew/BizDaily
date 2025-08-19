@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -494,41 +494,32 @@ const DailyBrief: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
 
-  useEffect(() => {
-    // Prevent duplicate API calls
-    if (isFetchingRef.current) {
-      return;
-    }
-    
+  const loadDailyBrief = useCallback(async () => {
+    if(isFetchingRef.current) return;
     isFetchingRef.current = true;
-    
-    const loadDailyBrief = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch daily brief data
-        const dailyBriefData = await fetchDailyBrief();
-        setCompanies(dailyBriefData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch daily brief');
-      } finally {
-        setLoading(false);
-        isFetchingRef.current = false;
-      }
-    };
+    try {
+      setLoading(true);
+      setError(null);
+      // Fetch daily brief data
+      const dailyBriefData = await fetchDailyBrief();
+      setCompanies(dailyBriefData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch daily brief');
+    } finally {
+      setLoading(false);
+      isFetchingRef.current = true;
+    }
+  }, []);
 
+  useEffect(() => {
     loadDailyBrief();
-
-    // Cleanup function
-    return () => {
-      isFetchingRef.current = false;
-    };
   }, []);
 
   const handleBack = () => {
     navigate('/');
   };
+
+  
 
   if (loading) {
     return (
