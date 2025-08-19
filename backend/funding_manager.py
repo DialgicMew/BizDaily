@@ -101,8 +101,6 @@ def fetch_companies_funded_on_date(
     conn: sqlite3.Connection,
     target_date_iso: str,
 ) -> Dict[str, int]:
-    
-    print(target_date_iso)
 
     cur = conn.execute(
         """

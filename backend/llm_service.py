@@ -55,7 +55,9 @@ def _split_funding_line(line: str):
     return stage, amount, date_, lead_investors
 
 
-def get_company_details(company: str) -> Dict[str, Any]:
+def get_company_details(company: str) -> tuple[str, dict[str, Any]]:
+
+    print(f"Now fetching details for: {company} ... wait ...")
 
     company_str = company
     as_of_date=date.today()
@@ -153,7 +155,7 @@ FORMATTING RULES
     try:
         output_text = response.output[1].content[0].text
         sections = extract_sections(output_text)
-        return sections
+        return company, sections
     except Exception as e:
         print("Failed to extract sections:", e)
 

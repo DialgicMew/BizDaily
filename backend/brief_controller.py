@@ -21,6 +21,8 @@ async def read_daily_brief(date: Optional[str] = Query(None, description="ISO da
 
     brief = await get_daily_brief(date)
 
+    print(f'brief: {brief}')
+
     if not brief:
         raise HTTPException(status_code=500, detail="No brief found for the given date.")
 

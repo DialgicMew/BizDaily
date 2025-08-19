@@ -76,7 +76,7 @@ async def get_company_details_by_funding_uuid(funding_uuid: int, generate_if_mis
     # Step 4: Generate details using LLM service (run in thread pool)
     print(f"Generating details for company: {company_name}, funding_uuid: {funding_uuid}")
     try:
-        llm_details = await loop.run_in_executor(
+        name, llm_details = await loop.run_in_executor(
             llm_executor, 
             _llm_operation, 
             get_company_details, 

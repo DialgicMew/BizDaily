@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 INSERT_SQL = """
 INSERT INTO company_details (
@@ -32,17 +32,17 @@ def single_insert(
     conn: sqlite3.Connection,
     detail: Dict[str, Any],
     name_to_uuid: Dict[str, int],
-) -> int:
-    company_name = detail.get("CompanyName")
+    company_name: str
+) -> Optional[tuple]:
     if not company_name:
-        return 0  # skip malformed
+        return None  # skip malformed
     
     print(f"Single insert for: {company_name}")
 
     funding_uuid = name_to_uuid.get(company_name)
     if funding_uuid is None:
         print(f"Warning: No funding_uuid found for company '{company_name}', skipping insert")
-        return 0  # skip when no matching funding_uuid
+        return None  # skip when no matching funding_uuid
 
     row = (
         funding_uuid,
@@ -66,7 +66,24 @@ def single_insert(
     with conn:
         conn.execute(INSERT_SQL, row)
 
-    return 1
+    return {
+        "funding_uuid": funding_uuid,
+        "company_name": company_name,
+        "generated_on": detail.get("generated_on"),
+        "valuation": detail.get("Valuation"),
+        "funding_round": detail.get("FundingRound"),
+        "use_of_funds": detail.get("UseOfFunds"),
+        "why_problem": detail.get("WhyProblem"),
+        "what_solution": detail.get("WhatSolution"),
+        "how_execution": detail.get("HowExecution"),
+        "customer_segment": detail.get("CustomerSegment"),
+        "founders_team_dna": detail.get("FoundersTeamDNA"),
+        "traction_snapshot": detail.get("TractionSnapshot"),
+        "competitive_edge": detail.get("CompetitiveEdge"),
+        "pivots": detail.get("Pivots"),
+        "key_risks_open_questions": detail.get("KeyRisksOpenQuestions"),
+        "sources": detail.get("Sources"),
+    }
 
 def bulk_insert(
     conn: sqlite3.Connection,
@@ -176,8 +193,8 @@ def store_company_details(conn: sqlite3.Connection, funding_uuid: int, company_n
     print(f"mapping for: {name_to_uuid}")
     
     try:
-        inserted_count = single_insert(conn, details_with_metadata, name_to_uuid)
-        return inserted_count > 0
+        inserted_row = single_insert(conn, details_with_metadata, name_to_uuid, company_name)
+        return inserted_row is not None
     except Exception as e:
         print(f"Error storing company details: {e}")
         return False 

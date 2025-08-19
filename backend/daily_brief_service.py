@@ -103,11 +103,13 @@ def _get_latest_funded_companies(funding_conn, target_date: str) -> List[Dict[st
             funding_conn, 
             companies_funded_today_name_uuid
         )
+
+    # print(f"New details produced: {companies_needing_details_result}")
     
     # Step 4: Compile all results
     all_results = companies_with_existing_details + companies_needing_details_result
     
-    print(f"Total results compiled: {len(all_results)}")
+    # print(f"Total results compiled: {all_results}")
     print(f"Existing details: {len(companies_with_existing_details)}")
     print(f"New details: {len(companies_needing_details_result)}")
     
@@ -116,9 +118,9 @@ def _get_latest_funded_companies(funding_conn, target_date: str) -> List[Dict[st
 def get_multiple_company_details(companies: List[str], funding_conn, companies_funded_today_name_uuid) -> List[Dict[str, Any]]:
     companies_detail = []
     for company in companies:
-        company_detail = get_company_details(company)
+        company_name, company_detail = get_company_details(company)
         with funding_conn:
-            single_insert_company_details(conn=funding_conn, detail=company_detail, name_to_uuid=companies_funded_today_name_uuid)
-        companies_detail.append(company_detail)
+            inserted_row = single_insert_company_details(conn=funding_conn, detail=company_detail, name_to_uuid=companies_funded_today_name_uuid, company_name=company_name)
+        companies_detail.append(inserted_row)
         print(f"Stored company details for {company}.")
     return companies_detail
