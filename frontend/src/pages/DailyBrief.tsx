@@ -10,15 +10,36 @@ import {
   CircularProgress,
   Link,
   Divider,
-  styled
+  styled,
+  IconButton
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 // Styled components for notebook theme
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   backgroundColor: '#ffffff',
   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
   borderBottom: '1px solid #e0e0e0',
+}));
+
+const DateToggleRoot = styled('div')(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  border: '1px solid #e0e0e0',
+  borderRadius: '8px',                 // pill shape
+  backgroundColor: '#E6E9EDFF',
+  padding: '4px',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+}));
+
+const DateLabel = styled(Typography)(({ theme }) => ({
+  flex: '0 0 0',   // fixed width, tweak until all formats fit
+  textAlign: 'center',
+  fontWeight: 400,
+  whiteSpace: 'nowrap',
+  color: '#141414FF'
 }));
 
 const BackButton = styled(Button)(({ theme }) => ({
@@ -315,6 +336,35 @@ const FlashOverlay = styled(Box)(({ theme }) => ({
   },
 }));
 
+// Inline body-only loader (covers just the notebook/body area)
+const AuroraInlineLoader = styled(Box)(({ theme }) => ({
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: 'linear-gradient(45deg, #000428, #004e92)',
+  overflow: 'hidden',
+  zIndex: 2,
+  animation: 'pulseBackground 4s ease-in-out infinite',
+  borderRadius: 0,
+  
+  '@keyframes pulseBackground': {
+    '0%, 100%': {
+      background: 'linear-gradient(45deg, #000428, #004e92)',
+    },
+    '25%': {
+      background: 'linear-gradient(45deg, #1a1a2e, #16213e)',
+    },
+    '50%': {
+      background: 'linear-gradient(45deg, #0f3460, #005aa7)',
+    },
+    '75%': {
+      background: 'linear-gradient(45deg, #2c1810, #8b4513)',
+    },
+  },
+}));
+
 // API types for daily brief
 interface DailyBriefCompany {
   id: number;
@@ -337,19 +387,39 @@ interface DailyBriefCompany {
   created_at: string;
 }
 
-// API service for daily brief
-const fetchDailyBrief = async (): Promise<DailyBriefCompany[]> => {
-  const response = await fetch('http://localhost:8000/api/brief/daily-brief?generate_if_missing=true', {
+
+const formatYMD = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+
+const fetchDailyBrief = async (
+  date: Date,
+  generateIfMissing: boolean = true
+): Promise<DailyBriefCompany[]> => {
+  const url = new URL('/api/brief/daily-brief', 'http://localhost:8000');
+  url.search = new URLSearchParams({
+    date: formatYMD(date),
+    generate_if_missing: String(generateIfMissing),
+  }).toString();
+
+  const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
   });
-  
+
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    // surface backend message if present
+    let msg = `HTTP ${response.status}`;
+    try {
+      const err = await response.json();
+      if (err?.detail) msg += ` – ${err.detail}`;
+    } catch { /* ignore */ }
+    throw new Error(msg);
   }
-  
   return response.json();
 };
 
@@ -493,23 +563,42 @@ const DailyBrief: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isFetchingRef = useRef(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const lastReqIdRef = useRef(0);
 
+  // fetcher stays as you wrote it, taking selectedDate
   const loadDailyBrief = useCallback(async () => {
-    if(isFetchingRef.current) return;
+    if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+
+    const reqId = ++lastReqIdRef.current; // track the latest request
+
     try {
       setLoading(true);
       setError(null);
-      // Fetch daily brief data
-      const dailyBriefData = await fetchDailyBrief();
-      setCompanies(dailyBriefData);
+
+      const data = await fetchDailyBrief(selectedDate); // uses current date
+
+      // only apply if this is the latest in-flight request
+      if (reqId === lastReqIdRef.current) {
+        setCompanies(data);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch daily brief');
+      if (reqId === lastReqIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch daily brief');
+      }
     } finally {
-      setLoading(false);
-      isFetchingRef.current = true;
+      if (reqId === lastReqIdRef.current) {
+        setLoading(false);
+      }
+      isFetchingRef.current = false; // ← was incorrectly set to true
     }
-  }, []);
+  }, [selectedDate]); // ← include selectedDate so it re-binds when the date changes
+
+// call on mount AND every time selectedDate changes
+useEffect(() => {
+  loadDailyBrief();
+}, [loadDailyBrief]);
 
   useEffect(() => {
     loadDailyBrief();
@@ -518,41 +607,6 @@ const DailyBrief: React.FC = () => {
   const handleBack = () => {
     navigate('/');
   };
-
-  
-
-  if (loading) {
-    return (
-      <AuroraLoader>
-        <AuroraWave />
-        <AuroraWave sx={{ animationDelay: '-2s', animationDirection: 'reverse' }} />
-        <AuroraWave sx={{ animationDelay: '-4s', transform: 'scale(0.8)' }} />
-        
-        {/* Floating particles */}
-        {Array.from({ length: 20 }).map((_, i) => (
-          <AuroraParticle
-            key={i}
-            delay={i * 0.5}
-            duration={3 + Math.random() * 2}
-            sx={{
-              left: `${Math.random() * 100}%`,
-              background: `hsl(${Math.random() * 360}, 70%, 60%)`,
-            }}
-          />
-        ))}
-        
-        <FlashOverlay />
-        
-        <LoadingText>
-          Compiling today's funding stories...
-          <br />
-          <Box component="span" sx={{ fontSize: '1rem', opacity: 0.7, mt: 1, display: 'block' }}>
-            ✨ Analyzing market trends and company insights
-          </Box>
-        </LoadingText>
-      </AuroraLoader>
-    );
-  }
 
   if (error) {
     return (
@@ -581,102 +635,173 @@ const DailyBrief: React.FC = () => {
     day: 'numeric' 
   });
 
+  const shiftDays = (delta: number) => {
+    setSelectedDate((prev) => {
+      const next = new Date(prev);
+      next.setDate(prev.getDate() + delta);
+      return next;
+    });
+  };
+
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString(undefined, {
+      weekday: 'short', // e.g., Mon
+      day: '2-digit',
+      month: 'short',   // e.g., Aug
+      year: 'numeric'
+    });
+
   return (
     <Box sx={{ 
       minHeight: '100vh',
-      backgroundColor: '#ecf0f1'
+      backgroundColor: '#ecf0f1',
+      display: 'flex',
+      flexDirection: 'column'
     }}>
       {/* Top Navbar */}
       <StyledAppBar position="static">
-        <Toolbar>
-          <BackButton startIcon={<ArrowBackIcon />} onClick={handleBack}>
-            Back to Home Page
-          </BackButton>
-        </Toolbar>
-      </StyledAppBar>
-      
-      {/* Notebook Content */}
-      <Box sx={{ p: 3, maxWidth: '1000px', margin: '0 auto', position: 'relative' }}>
-        {/* Spiral binding effect */}
-        <Box sx={{
-          position: 'absolute',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '800px',
-          height: '10px',
-          background: 'repeating-linear-gradient(90deg, #ccc 0px, #ccc 20px, transparent 20px, transparent 40px)',
-          borderRadius: '5px',
-          zIndex: 1,
-        }} />
-        
-        <NotebookPage>
-          <DateHeader>{today}</DateHeader>
-          <NotebookTitle>Daily Funding Brief</NotebookTitle>
-          
-          {companies.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 8 }}>
-              <Typography sx={{ fontSize: '1.2rem', color: '#000000' }}>
-                No funding announcements today... yet! 📰
-              </Typography>
-            </Box>
-          ) : (
-            <>
-              <Typography sx={{ 
-                fontSize: '1.1rem', 
-                color: '#000000', 
-                mb: 4, 
-                textAlign: 'center' 
-              }}>
-                {companies.length} companies received funding today 🚀
-              </Typography>
-              
-              {companies.map((company, index) => (
-                <CompanySection key={`${company.company_name}-${index}`}>
-                  <CompanyTitle>
-                    {index + 1}. {company.company_name}
-                  </CompanyTitle>
-                  
-                  {/* Company Details in Q&A Format */}
-                  {(() => {
-                    // Define custom order for questions (only these will be displayed)
-                    const customOrder = [
-                      'why_problem',
-                      'what_solution',
-                      'how_execution',
-                      'customer_segment',
-                      'founders_team_dna',
-                      'traction_snapshot',
-                      'competitive_edge',
-                      'sources'
-                    ];
+      <Toolbar>
+        <BackButton startIcon={<ArrowBackIcon />} onClick={handleBack}>
+          Back to Home Page
+        </BackButton>
+
+        {/* spacer pushes the toggle to the right */}
+        <Box sx={{ flexGrow: 1 }} />
+
+        <DateToggleRoot>
+          <IconButton
+            aria-label="Previous day"
+            size="small"
+            onClick={() => shiftDays(-1)}
+            sx={{ borderRadius: '10px' }}
+          >
+            <ChevronLeftIcon fontSize="small" />
+          </IconButton>
+
+          <DateLabel>
+            {formatDate(selectedDate)}
+          </DateLabel>
+
+          <IconButton
+            aria-label="Next day"
+            size="small"
+            onClick={() => shiftDays(1)}
+            sx={{ borderRadius: '10px' }}
+          >
+            <ChevronRightIcon fontSize="small" />
+          </IconButton>
+        </DateToggleRoot>
+      </Toolbar>
+    </StyledAppBar>
+      {/* Body container below AppBar */}
+      <Box sx={{ flex: 1, position: 'relative' }}>
+        {loading && (
+          <AuroraInlineLoader>
+            <AuroraWave />
+            <AuroraWave sx={{ animationDelay: '-2s', animationDirection: 'reverse' }} />
+            <AuroraWave sx={{ animationDelay: '-4s', transform: 'scale(0.8)' }} />
+            {Array.from({ length: 20 }).map((_, i) => (
+              <AuroraParticle
+                key={i}
+                delay={i * 0.5}
+                duration={3 + Math.random() * 2}
+                sx={{
+                  left: `${Math.random() * 100}%`,
+                  background: `hsl(${Math.random() * 360}, 70%, 60%)`,
+                }}
+              />
+            ))}
+            <FlashOverlay />
+            <LoadingText>
+              Compiling today's funding stories...
+              <br />
+              <Box component="span" sx={{ fontSize: '1rem', opacity: 0.7, mt: 1, display: 'block' }}>
+                ✨ Analyzing market trends and company insights
+              </Box>
+            </LoadingText>
+          </AuroraInlineLoader>
+        )}
+        {/* Notebook Content */}
+        <Box sx={{ p: 3, maxWidth: '1000px', margin: '0 auto', position: 'relative' }}>
+          {/* Spiral binding effect */}
+          <Box sx={{
+            position: 'absolute',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '800px',
+            height: '10px',
+            background: 'repeating-linear-gradient(90deg, #ccc 0px, #ccc 20px, transparent 20px, transparent 40px)',
+            borderRadius: '5px',
+            zIndex: 1,
+          }} />
+          <NotebookPage sx={{ visibility: loading ? 'hidden' : 'visible' }}>
+            <NotebookTitle>Daily Funding Brief</NotebookTitle>
+            
+            {companies.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 8 }}>
+                <Typography sx={{ fontSize: '1.2rem', color: '#000000' }}>
+                  No funding announcements today... yet! 📰
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Typography sx={{ 
+                  fontSize: '1.1rem', 
+                  color: '#000000', 
+                  mb: 4, 
+                  textAlign: 'center' 
+                }}>
+                  {companies.length} companies received funding today 🚀
+                </Typography>
+                
+                {companies.map((company, index) => (
+                  <CompanySection key={`${company.company_name}-${index}`}>
+                    <CompanyTitle>
+                      {index + 1}. {company.company_name}
+                    </CompanyTitle>
                     
-                    // Filter and sort entries based on custom order
-                    return Object.entries(company)
-                      .filter(([key]) => customOrder.includes(key.toLowerCase()))
-                      .filter(([, value]) => {
-                        if (!value) return false;
-                        if (value === 'N/A' || value === 'n/a') return false;
-                        if (typeof value !== 'string') return false;
-                        return value.trim().length > 0;
-                      })
-                      .sort(([keyA], [keyB]) => {
-                        const indexA = customOrder.indexOf(keyA.toLowerCase());
-                        const indexB = customOrder.indexOf(keyB.toLowerCase());
-                        return indexA - indexB;
-                      })
-                      .map(([key, value]) => (
-                        <React.Fragment key={key}>
-                          <QuestionTitle>{formatFieldQuestion(key)}</QuestionTitle>
-                          <AnswerText>{formatContent(value as string)}</AnswerText>
-                        </React.Fragment>
-                      ));
-                  })()}
-                </CompanySection>
-              ))}
-            </>
-          )}
-        </NotebookPage>
+                    {/* Company Details in Q&A Format */}
+                    {(() => {
+                      // Define custom order for questions (only these will be displayed)
+                      const customOrder = [
+                        'why_problem',
+                        'what_solution',
+                        'how_execution',
+                        'customer_segment',
+                        'founders_team_dna',
+                        'traction_snapshot',
+                        'competitive_edge',
+                        'sources'
+                      ];
+                      
+                      // Filter and sort entries based on custom order
+                      return Object.entries(company)
+                        .filter(([key]) => customOrder.includes(key.toLowerCase()))
+                        .filter(([, value]) => {
+                          if (!value) return false;
+                          if (value === 'N/A' || value === 'n/a') return false;
+                          if (typeof value !== 'string') return false;
+                          return value.trim().length > 0;
+                        })
+                        .sort(([keyA], [keyB]) => {
+                          const indexA = customOrder.indexOf(keyA.toLowerCase());
+                          const indexB = customOrder.indexOf(keyB.toLowerCase());
+                          return indexA - indexB;
+                        })
+                        .map(([key, value]) => (
+                          <React.Fragment key={key}>
+                            <QuestionTitle>{formatFieldQuestion(key)}</QuestionTitle>
+                            <AnswerText>{formatContent(value as string)}</AnswerText>
+                          </React.Fragment>
+                        ));
+                    })()}
+                  </CompanySection>
+                ))}
+              </>
+            )}
+          </NotebookPage>
+        </Box>
       </Box>
     </Box>
   );
