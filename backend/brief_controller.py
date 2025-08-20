@@ -4,6 +4,7 @@ import asyncio
 from fastapi import FastAPI, HTTPException, Query
 from daily_brief_service import get_daily_brief, create_daily_brief
 import datetime as _dt
+import time
 app = FastAPI(title="Startup News – Daily Brief API")
 
 
@@ -25,5 +26,6 @@ async def read_daily_brief(date: Optional[str] = Query(None, description="ISO da
 
     if not brief:
         raise HTTPException(status_code=500, detail="No brief found for the given date.")
+
 
     return brief
