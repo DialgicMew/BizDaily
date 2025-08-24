@@ -16,8 +16,12 @@ import {
   CircularProgress,
   Typography,
   Link,
+  TextField,
+  InputAdornment,
+  IconButton,
   styled
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 
 // Styled components
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -35,6 +39,51 @@ const DailyBriefButton = styled(Button)(({ theme }) => ({
   fontWeight: 600,
   '&:hover': {
     backgroundColor: '#1565c0',
+  },
+}));
+
+const SearchContainer = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '16px',
+  marginLeft: 'auto',
+  marginRight: '16px',
+}));
+
+const SearchTextField = styled(TextField)(({ theme }) => ({
+  '& .MuiOutlinedInput-root': {
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+    '& fieldset': {
+      borderColor: '#e0e0e0',
+    },
+    '&:hover fieldset': {
+      borderColor: '#1976d2',
+    },
+    '&.Mui-focused fieldset': {
+      borderColor: '#1976d2',
+    },
+  },
+  '& .MuiInputBase-input': {
+    padding: '10px 14px',
+    fontSize: '14px',
+  },
+}));
+
+const SearchButton = styled(Button)(({ theme }) => ({
+  backgroundColor: '#1976d2',
+  color: 'white',
+  borderRadius: '8px',
+  padding: '8px 16px',
+  textTransform: 'none',
+  fontWeight: 500,
+  minWidth: '80px',
+  '&:hover': {
+    backgroundColor: '#1565c0',
+  },
+  '&:disabled': {
+    backgroundColor: '#cccccc',
+    color: '#888888',
   },
 }));
 
@@ -113,16 +162,27 @@ const columns = [
 ];
 
 // API service
-const fetchFundingData = async (page: number, pageSize: number = 10): Promise<ApiResponse> => {
+const fetchFundingData = async (
+  page: number, 
+  pageSize: number = 10, 
+  searchQuery?: string
+): Promise<ApiResponse> => {
+  const requestBody: any = {
+    page: page - 1, // API uses 0-based indexing
+    page_size: pageSize,
+  };
+  
+  // Add search query if provided
+  if (searchQuery && searchQuery.trim()) {
+    requestBody.search_query = searchQuery.trim();
+  }
+  
   const response = await fetch('http://localhost:8000/api/funding/funding/filter', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      page: page - 1, // API uses 0-based indexing
-      page_size: pageSize,
-    }),
+    body: JSON.stringify(requestBody),
   });
   
   if (!response.ok) {
@@ -180,6 +240,7 @@ const formatCellValue = (value: any, column: string): string | React.ReactNode =
 interface TableState {
   page: number;
   pageSize: number;
+  searchQuery?: string;
   filters?: Record<string, any>;
   orderBy?: Array<{ field: string; direction: 'asc' | 'desc' }>;
 }
@@ -196,10 +257,11 @@ const Home: React.FC = () => {
     // First try URL parameters
     const urlPage = searchParams.get('page');
     const urlPageSize = searchParams.get('pageSize');
+    const urlSearchQuery = searchParams.get('search');
     const urlFilters = searchParams.get('filters');
     const urlOrderBy = searchParams.get('orderBy');
     
-    if (urlPage) {
+    if (urlPage || urlSearchQuery) {
       let filters = {};
       let orderBy: Array<{ field: string; direction: 'asc' | 'desc' }> = [];
       
@@ -211,8 +273,9 @@ const Home: React.FC = () => {
       }
       
       return {
-        page: parseInt(urlPage, 10) || 1,
+        page: parseInt(urlPage || '1', 10),
         pageSize: parseInt(urlPageSize || '10', 10),
+        searchQuery: urlSearchQuery || undefined,
         filters,
         orderBy
       };
@@ -232,12 +295,14 @@ const Home: React.FC = () => {
     return {
       page: 1,
       pageSize: 10,
+      searchQuery: undefined,
       filters: {},
       orderBy: []
     };
   };
 
   const [tableState, setTableState] = useState<TableState>(getInitialTableState);
+  const [searchInput, setSearchInput] = useState(getInitialTableState().searchQuery || '');
   const [data, setData] = useState<FundingData[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -261,6 +326,11 @@ const Home: React.FC = () => {
     newSearchParams.set('page', updatedState.page.toString());
     newSearchParams.set('pageSize', updatedState.pageSize.toString());
     
+    // Add search query to URL if present
+    if (updatedState.searchQuery && updatedState.searchQuery.trim()) {
+      newSearchParams.set('search', updatedState.searchQuery.trim());
+    }
+    
     // Add filters and orderBy to URL when implemented
     if (updatedState.filters && Object.keys(updatedState.filters).length > 0) {
       newSearchParams.set('filters', JSON.stringify(updatedState.filters));
@@ -275,12 +345,33 @@ const Home: React.FC = () => {
     localStorage.setItem(TABLE_STATE_KEY, JSON.stringify(updatedState));
   };
 
+  // Search handler
+  const handleSearch = () => {
+    if (loading) return; // Prevent search during loading
+    
+    updateTableState({ 
+      page: 1, // Reset to first page when searching
+      searchQuery: searchInput.trim() || undefined 
+    });
+  };
+
+  // Handle Enter key press in search field
+  const handleSearchKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetchFundingData(tableState.page, tableState.pageSize);
+        const response = await fetchFundingData(
+          tableState.page, 
+          tableState.pageSize, 
+          tableState.searchQuery
+        );
         setData(response.data);
         setTotal(response.total);
       } catch (err) {
@@ -291,7 +382,7 @@ const Home: React.FC = () => {
     };
     
     loadData();
-  }, [tableState.page, tableState.pageSize, tableState.filters, tableState.orderBy]);
+  }, [tableState.page, tableState.pageSize, tableState.searchQuery, tableState.filters, tableState.orderBy]);
   
   const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
     updateTableState({ page: value });
@@ -326,6 +417,30 @@ const Home: React.FC = () => {
           <DailyBriefButton onClick={() => navigate('/daily-brief')}>
             Daily Brief
           </DailyBriefButton>
+          
+          <SearchContainer>
+            <SearchTextField
+              size="small"
+              placeholder="Search companies, investors, sectors..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyPress={handleSearchKeyPress}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: '#666', fontSize: 20 }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ width: '300px' }}
+            />
+            <SearchButton 
+              onClick={handleSearch}
+              disabled={loading}
+            >
+              Search
+            </SearchButton>
+          </SearchContainer>
         </Toolbar>
       </StyledAppBar>
       

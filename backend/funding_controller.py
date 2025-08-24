@@ -9,12 +9,15 @@ The POST /funding/filter endpoint accepts a JSON payload:
       "funding_stage": ["Series A", "Seed Stage"],
       "sector": ["Fintech"]
   },
+  "search_query": "fintech startup",
   "page": 0,
   "page_size": 25,
   "order_by": ["funding_date DESC", "funding_uuid DESC"]
 }
 
 All fields are optional.
+- search_query: Searches across company names, sectors, investors, funding stages using LIKE queries.
+  Results are ordered by match relevance when search is present.
 """
 from __future__ import annotations
 
@@ -34,6 +37,7 @@ app = FastAPI(title="Funding API", version="1.0")
 
 class FilterRequest(BaseModel):
     filters: Optional[Dict[str, List[str]]] = None
+    search_query: Optional[str] = None  # Search across company names, sectors, investors, etc.
     page: int = 0
     page_size: int = 25
     order_by: Optional[List[str]] = None  # e.g. ["funding_date DESC", "funding_amount ASC"]
@@ -79,6 +83,7 @@ async def funding_filter(payload: FilterRequest):
             payload.page,
             payload.page_size,
             order_by_tuples,
+            payload.search_query,
         )
         return result
     except ValueError as ve:

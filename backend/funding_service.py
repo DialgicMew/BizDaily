@@ -8,48 +8,106 @@ from inc42Client import fetch_page
 
 
 def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = None, 
-                              page: int = 0, page_size: int = 25, order_by: Optional[List[Tuple[str, str]]] = None,) -> Dict[str, Any]:
+                              page: int = 0, page_size: int = 25, order_by: Optional[List[Tuple[str, str]]] = None,
+                              search_query: Optional[str] = None) -> Dict[str, Any]:
     conn = init_funding_db()
     try:
-        sql = "SELECT * FROM funding"
-        count_sql = "SELECT COUNT(*) FROM funding"
+        # Search fields for fuzzy matching
+        search_fields = [
+            'company_name', 'funded_company_name', 'sector', 'sub_sector',
+            'investor_names', 'lead_investors', 'funding_stage', 'funding_type'
+        ]
+        
+        # Build base queries with search relevance scoring
+        if search_query and search_query.strip():
+            # Build relevance score SQL for sorting
+            relevance_parts = []
+            search_term = f"%{search_query.strip()}%"
+            
+            for field in search_fields:
+                relevance_parts.append(f"CASE WHEN {field} LIKE ? THEN 1 ELSE 0 END")
+            
+            relevance_sql = " + ".join(relevance_parts)
+            sql = f"SELECT *, ({relevance_sql}) AS relevance_score FROM funding"
+            count_sql = "SELECT COUNT(*) FROM funding"
+        else:
+            sql = "SELECT * FROM funding"
+            count_sql = "SELECT COUNT(*) FROM funding"
+        
         params: List[Any] = []
         count_params: List[Any] = []
 
         # List of valid column names (cache per connection)
         valid_cols = {row[1] for row in conn.execute("PRAGMA table_info(funding)")}
 
+        # Build WHERE clauses
+        where_clauses = []
+        
+        # Add search conditions
+        if search_query and search_query.strip():
+            search_term = f"%{search_query.strip()}%"
+            search_conditions = []
+            
+            for field in search_fields:
+                search_conditions.append(f"{field} LIKE ?")
+                params.append(search_term)
+                count_params.append(search_term)
+            
+            # Add relevance score parameters for main query
+            for _ in search_fields:
+                params.append(search_term)
+            
+            where_clauses.append(f"({' OR '.join(search_conditions)})")
+
+        # Add filter conditions
         if filters:
-            clauses = []
             for col, values in filters:
                 if col not in valid_cols:
                     raise ValueError(f"Unknown filter column '{col}'.")
                 if not values:
                     return {"data": [], "total": 0, "page": page, "page_size": page_size}
                 placeholders = ",".join(["?"] * len(values))
-                clauses.append(f"{col} IN ({placeholders})")
+                where_clauses.append(f"{col} IN ({placeholders})")
                 params.extend(values)
                 count_params.extend(values)
-            where_clause = " WHERE " + " AND ".join(clauses)
+
+        # Apply WHERE clause if any conditions exist
+        if where_clauses:
+            where_clause = " WHERE " + " AND ".join(where_clauses)
             sql += where_clause
             count_sql += where_clause
 
         # Get total count for pagination
-        cur_count = conn.execute(count_sql, count_params if filters else [])
+        cur_count = conn.execute(count_sql, count_params)
         total = cur_count.fetchone()[0]
 
         # Build ORDER BY clause
-        if order_by:
-            # Basic validation: ensure ASC/DESC only
-            parts = []
-            for col, direction in order_by:
-                direction_up = direction.upper()
-                if direction_up not in ("ASC", "DESC"):
-                    raise ValueError(f"Invalid sort direction '{direction}'. Use 'ASC' or 'DESC'.")
-                parts.append(f"{col} {direction_up}")
-            sql += " ORDER BY " + ", ".join(parts)
+        if search_query and search_query.strip():
+            # When search query is present, order by relevance first
+            if order_by:
+                # Basic validation: ensure ASC/DESC only
+                parts = ["relevance_score DESC"]
+                for col, direction in order_by:
+                    direction_up = direction.upper()
+                    if direction_up not in ("ASC", "DESC"):
+                        raise ValueError(f"Invalid sort direction '{direction}'. Use 'ASC' or 'DESC'.")
+                    parts.append(f"{col} {direction_up}")
+                sql += " ORDER BY " + ", ".join(parts)
+            else:
+                sql += " ORDER BY relevance_score DESC, funding_date DESC, funding_uuid DESC"
         else:
-            sql += " ORDER BY funding_date DESC, funding_uuid DESC"
+            # No search query, use regular ordering
+            if order_by:
+                # Basic validation: ensure ASC/DESC only
+                parts = []
+                for col, direction in order_by:
+                    direction_up = direction.upper()
+                    if direction_up not in ("ASC", "DESC"):
+                        raise ValueError(f"Invalid sort direction '{direction}'. Use 'ASC' or 'DESC'.")
+                    parts.append(f"{col} {direction_up}")
+                sql += " ORDER BY " + ", ".join(parts)
+            else:
+                sql += " ORDER BY funding_date DESC, funding_uuid DESC"
 
         # Add pagination to query
         sql += " LIMIT ? OFFSET ?"
@@ -58,6 +116,11 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
         cur = conn.execute(sql, params)
         columns = [desc[0] for desc in cur.description]
         rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+
+        # Remove relevance_score from results if it exists (used only for sorting)
+        if search_query and search_query.strip():
+            for row in rows:
+                row.pop('relevance_score', None)
 
         return {
             "data": rows,
