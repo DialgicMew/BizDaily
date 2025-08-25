@@ -19,9 +19,12 @@ import {
   TextField,
   InputAdornment,
   IconButton,
+  Snackbar,
+  Alert,
   styled
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 // Styled components
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -80,6 +83,23 @@ const SearchButton = styled(Button)(({ theme }) => ({
   minWidth: '80px',
   '&:hover': {
     backgroundColor: '#1565c0',
+  },
+  '&:disabled': {
+    backgroundColor: '#cccccc',
+    color: '#888888',
+  },
+}));
+
+const RefreshButton = styled(Button)(({ theme }) => ({
+  backgroundColor: '#4caf50',
+  color: 'white',
+  borderRadius: '8px',
+  padding: '8px 16px',
+  textTransform: 'none',
+  fontWeight: 500,
+  minWidth: '120px',
+  '&:hover': {
+    backgroundColor: '#45a049',
   },
   '&:disabled': {
     backgroundColor: '#cccccc',
@@ -183,6 +203,21 @@ const fetchFundingData = async (
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  return response.json();
+};
+
+const refreshFundingData = async (): Promise<{message: string, status: string}> => {
+  const response = await fetch('http://localhost:8000/api/funding/funding/refresh', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
   });
   
   if (!response.ok) {
@@ -307,6 +342,8 @@ const Home: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   // Update state when URL changes (browser back/forward)
   useEffect(() => {
@@ -359,6 +396,38 @@ const Home: React.FC = () => {
   const handleSearchKeyPress = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       handleSearch();
+    }
+  };
+
+  // Handle refresh button click
+  const handleRefresh = async () => {
+    if (refreshing || loading) return; // Prevent multiple refreshes
+    
+    try {
+      setRefreshing(true);
+      setRefreshMessage(null);
+      
+      const result = await refreshFundingData();
+      setRefreshMessage(result.message);
+      
+      // Refresh the current data after successful sync
+      const response = await fetchFundingData(
+        tableState.page, 
+        tableState.pageSize, 
+        tableState.searchQuery
+      );
+      setData(response.data);
+      setTotal(response.total);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setRefreshMessage(null), 3000);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to refresh data';
+      setRefreshMessage(`Error: ${errorMsg}`);
+      // Clear error message after 5 seconds
+      setTimeout(() => setRefreshMessage(null), 5000);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -440,6 +509,13 @@ const Home: React.FC = () => {
             >
               Search
             </SearchButton>
+            <RefreshButton 
+              onClick={handleRefresh}
+              disabled={loading || refreshing}
+              startIcon={refreshing ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
+            >
+              {refreshing ? 'Refreshing...' : 'Refresh Data'}
+            </RefreshButton>
           </SearchContainer>
         </Toolbar>
       </StyledAppBar>
@@ -518,6 +594,22 @@ const Home: React.FC = () => {
           />
         </Box>
       </Box>
+      
+      {/* Refresh Status Snackbar */}
+      <Snackbar
+        open={!!refreshMessage}
+        autoHideDuration={refreshMessage?.startsWith('Error:') ? 5000 : 3000}
+        onClose={() => setRefreshMessage(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setRefreshMessage(null)}
+          severity={refreshMessage?.startsWith('Error:') ? 'error' : 'success'}
+          variant="filled"
+        >
+          {refreshMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

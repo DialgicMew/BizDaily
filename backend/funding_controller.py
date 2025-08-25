@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from funding_service import fetch_funding_data_filter
+from funding_service import fetch_funding_data_filter, bulk_save_funding_data
 
 # Thread pool for database operations
 funding_db_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="funding_db")
@@ -89,4 +89,22 @@ async def funding_filter(payload: FilterRequest):
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error") from e 
+        raise HTTPException(status_code=500, detail="Internal Server Error") from e
+
+
+@app.post("/funding/refresh")
+async def refresh_funding_data():
+    """
+    Refresh/sync funding data by fetching the latest data from the external API
+    and updating the local database.
+    """
+    try:
+        # Run the bulk save operation in thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            funding_db_executor,
+            bulk_save_funding_data
+        )
+        return {"message": "Funding data refreshed successfully", "status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to refresh funding data: {str(e)}") from e 
