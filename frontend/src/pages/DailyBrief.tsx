@@ -11,11 +11,19 @@ import {
   Link,
   Divider,
   styled,
-  IconButton
+  IconButton,
+  useMediaQuery,
+  useTheme,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import MenuIcon from '@mui/icons-material/Menu';
 
 // Styled components for notebook theme
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -24,22 +32,44 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
   borderBottom: '1px solid #e0e0e0',
 }));
 
+const MobileMenuButton = styled(IconButton)(({ theme }) => ({
+  color: '#1976d2',
+  [theme.breakpoints.up('md')]: {
+    display: 'none',
+  },
+}));
+
+const MobileDrawer = styled(Drawer)(({ theme }) => ({
+  '& .MuiDrawer-paper': {
+    width: '280px',
+    backgroundColor: '#ffffff',
+  },
+}));
+
 const DateToggleRoot = styled('div')(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   border: '1px solid #e0e0e0',
-  borderRadius: '8px',                 // pill shape
+  borderRadius: '8px',
   backgroundColor: '#E6E9EDFF',
   padding: '4px',
   boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+  [theme.breakpoints.down('md')]: {
+    flexShrink: 0,
+    fontSize: '0.8rem',
+  },
 }));
 
 const DateLabel = styled(Typography)(({ theme }) => ({
-  flex: '0 0 0',   // fixed width, tweak until all formats fit
+  flex: '0 0 0',
   textAlign: 'center',
   fontWeight: 400,
   whiteSpace: 'nowrap',
-  color: '#141414FF'
+  color: '#141414FF',
+  [theme.breakpoints.down('md')]: {
+    fontSize: '0.8rem',
+    padding: '0 8px',
+  },
 }));
 
 const BackButton = styled(Button)(({ theme }) => ({
@@ -52,23 +82,39 @@ const BackButton = styled(Button)(({ theme }) => ({
   '&:hover': {
     backgroundColor: '#1565c0',
   },
+  [theme.breakpoints.down('md')]: {
+    padding: '6px 16px',
+    fontSize: '0.8rem',
+    display: 'none', // Hide on mobile to save space
+  },
 }));
 
 const NotebookPage = styled(Paper)(({ theme }) => ({
   backgroundColor: '#fefefe',
-      backgroundImage: `
-      linear-gradient(90deg, #1565c0 40px, #1565c0 42px, transparent 42px),
-      repeating-linear-gradient(0deg, transparent, transparent 29px, #e8f4fd 29px, #e8f4fd 31px)
-    `,
+  backgroundImage: `
+    linear-gradient(90deg, #1565c0 40px, #1565c0 42px, transparent 42px),
+    repeating-linear-gradient(0deg, transparent, transparent 29px, #e8f4fd 29px, #e8f4fd 31px)
+  `,
   backgroundSize: '100% 30px',
   borderRadius: '0',
   boxShadow: '4px 4px 12px rgba(0,0,0,0.15)',
   border: '1px solid #ccc',
   borderLeft: '4px solid #1565c0',
   minHeight: 'calc(100vh - 100px)',
-  padding: '40px 60px 40px 80px', // Left margin for red line
+  padding: '40px 60px 40px 80px',
   marginBottom: '20px',
   position: 'relative',
+  [theme.breakpoints.down('md')]: {
+    padding: '20px 20px 20px 40px', // Reduced padding for mobile
+    marginBottom: '10px',
+    borderRadius: '0',
+    margin: '0 -8px',
+    backgroundImage: `
+      linear-gradient(90deg, #1565c0 20px, #1565c0 22px, transparent 22px),
+      repeating-linear-gradient(0deg, transparent, transparent 24px, #e8f4fd 24px, #e8f4fd 26px)
+    `,
+    backgroundSize: '100% 25px',
+  },
   // Add holes at the top like a real notebook
   '&::before': {
     content: '""',
@@ -81,6 +127,13 @@ const NotebookPage = styled(Paper)(({ theme }) => ({
     backgroundColor: '#f5f5f5',
     border: '1px solid #ddd',
     boxShadow: '0 20px 0 #f5f5f5, 0 20px 0 1px #ddd, 0 40px 0 #f5f5f5, 0 40px 0 1px #ddd',
+    [theme.breakpoints.down('md')]: {
+      top: '15px',
+      left: '8px',
+      width: '6px',
+      height: '6px',
+      boxShadow: '0 15px 0 #f5f5f5, 0 15px 0 1px #ddd, 0 30px 0 #f5f5f5, 0 30px 0 1px #ddd',
+    },
   },
   // Add subtle paper texture
   '&::after': {
@@ -107,6 +160,14 @@ const NotebookTitle = styled(Typography)(({ theme }) => ({
   marginBottom: '20px',
   textAlign: 'center',
   textDecorationColor: '#000000',
+  [theme.breakpoints.down('md')]: {
+    fontSize: '1.8rem',
+    marginBottom: '15px',
+  },
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '1.5rem',
+    marginBottom: '12px',
+  },
 }));
 
 const CompanySection = styled(Box)(({ theme }) => ({
@@ -127,7 +188,15 @@ const CompanySection = styled(Box)(({ theme }) => ({
     width: '40px',
     borderRight: '1px solid #e0e0e0',
     backgroundColor: 'rgba(255, 0, 0, 0.02)',
-  }
+    [theme.breakpoints.down('md')]: {
+      left: '-20px',
+      width: '20px',
+    },
+  },
+  [theme.breakpoints.down('md')]: {
+    marginBottom: '30px',
+    paddingBottom: '20px',
+  },
 }));
 
 const CompanyTitle = styled(Typography)(({ theme }) => ({
@@ -146,7 +215,15 @@ const CompanyTitle = styled(Typography)(({ theme }) => ({
     height: '8px',
     backgroundColor: 'rgba(255, 255, 0, 0.2)',
     zIndex: -1,
-  }
+  },
+  [theme.breakpoints.down('md')]: {
+    fontSize: '1.4rem',
+    marginBottom: '12px',
+  },
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '1.2rem',
+    marginBottom: '10px',
+  },
 }));
 
 const QuestionTitle = styled(Typography)(({ theme }) => ({
@@ -163,7 +240,20 @@ const QuestionTitle = styled(Typography)(({ theme }) => ({
     left: '-20px',
     color: '#666',
     fontWeight: 'bold',
-  }
+  },
+  [theme.breakpoints.down('md')]: {
+    fontSize: '1.1rem',
+    marginBottom: '8px',
+    marginTop: '16px',
+    '&::before': {
+      left: '-15px',
+    },
+  },
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '1rem',
+    marginBottom: '6px',
+    marginTop: '12px',
+  },
 }));
 
 const AnswerText = styled(Box)(({ theme }) => ({
@@ -188,6 +278,21 @@ const AnswerText = styled(Box)(({ theme }) => ({
   },
   '& li': {
     marginBottom: '4px',
+  },
+  [theme.breakpoints.down('md')]: {
+    fontSize: '0.9rem',
+    lineHeight: '1.5',
+    marginBottom: '20px',
+    '& p': {
+      margin: '0 0 8px 0',
+    },
+    '& ul': {
+      paddingLeft: '16px',
+    },
+  },
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '0.85rem',
+    marginBottom: '16px',
   },
 }));
 
@@ -559,6 +664,9 @@ const formatFieldQuestion = (key: string): string => {
 
 const DailyBrief: React.FC = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [companies, setCompanies] = useState<DailyBriefCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -585,7 +693,15 @@ const DailyBrief: React.FC = () => {
       }
     } catch (err) {
       if (reqId === lastReqIdRef.current) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch daily brief');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch daily brief';
+        
+        // Check if this is a "no brief found" error - treat it as empty state instead of error
+        if (errorMessage.includes('No brief found for the given date')) {
+          setError(null); // Don't set it as an error
+          setCompanies([]); // Set empty array to show "no data" state
+        } else {
+          setError(errorMessage);
+        }
       }
     } finally {
       if (reqId === lastReqIdRef.current) {
@@ -616,11 +732,84 @@ useEffect(() => {
       }}>
         <StyledAppBar position="static">
           <Toolbar>
+            {/* Mobile Menu Button */}
+            <MobileMenuButton
+              edge="start"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <MenuIcon />
+            </MobileMenuButton>
+
+            {/* BizDaily Branding */}
+            <Typography 
+              variant="h6" 
+              component="div" 
+              sx={{ 
+                fontWeight: 700,
+                color: '#1976d2',
+                fontSize: { xs: '1.1rem', md: '1.25rem' },
+                marginLeft: { xs: 1, md: 0 },
+                marginRight: { xs: 'auto', md: 2 },
+                cursor: 'pointer'
+              }}
+              onClick={() => navigate('/')}
+            >
+              BizDaily
+            </Typography>
+
+            {/* Desktop Back Button */}
             <BackButton startIcon={<ArrowBackIcon />} onClick={handleBack}>
               Back to Home Page
             </BackButton>
+            
+            {/* Mobile Back Button */}
+            {isMobile && (
+              <IconButton
+                onClick={handleBack}
+                sx={{ color: '#1976d2', mr: 1 }}
+                size="small"
+              >
+                <ArrowBackIcon />
+              </IconButton>
+            )}
           </Toolbar>
         </StyledAppBar>
+        
+        {/* Mobile Navigation Drawer */}
+        <MobileDrawer
+          anchor="left"
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+        >
+          <List>
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => {
+                  navigate('/');
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <ListItemText 
+                  primary="Home" 
+                  primaryTypographyProps={{ 
+                    fontWeight: 600, 
+                    color: '#1976d2' 
+                  }} 
+                />
+              </ListItemButton>
+            </ListItem>
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => {
+                  navigate('/daily-brief');
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <ListItemText primary="Daily Brief" />
+              </ListItemButton>
+            </ListItem>
+          </List>
+        </MobileDrawer>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
           <Typography color="error">Error: {error}</Typography>
         </Box>
@@ -660,39 +849,112 @@ useEffect(() => {
     }}>
       {/* Top Navbar */}
       <StyledAppBar position="static">
-      <Toolbar>
-        <BackButton startIcon={<ArrowBackIcon />} onClick={handleBack}>
-          Back to Home Page
-        </BackButton>
-
-        {/* spacer pushes the toggle to the right */}
-        <Box sx={{ flexGrow: 1 }} />
-
-        <DateToggleRoot>
-          <IconButton
-            aria-label="Previous day"
-            size="small"
-            onClick={() => shiftDays(-1)}
-            sx={{ borderRadius: '10px' }}
+        <Toolbar>
+          {/* Mobile Menu Button */}
+          <MobileMenuButton
+            edge="start"
+            onClick={() => setMobileMenuOpen(true)}
           >
-            <ChevronLeftIcon fontSize="small" />
-          </IconButton>
+            <MenuIcon />
+          </MobileMenuButton>
 
-          <DateLabel>
-            {formatDate(selectedDate)}
-          </DateLabel>
-
-          <IconButton
-            aria-label="Next day"
-            size="small"
-            onClick={() => shiftDays(1)}
-            sx={{ borderRadius: '10px' }}
+          {/* BizDaily Branding */}
+          <Typography 
+            variant="h6" 
+            component="div" 
+            sx={{ 
+              fontWeight: 700,
+              color: '#1976d2',
+              fontSize: { xs: '1.1rem', md: '1.25rem' },
+              marginLeft: { xs: 1, md: 0 },
+              marginRight: { xs: 'auto', md: 2 },
+              cursor: 'pointer'
+            }}
+            onClick={() => navigate('/')}
           >
-            <ChevronRightIcon fontSize="small" />
-          </IconButton>
-        </DateToggleRoot>
-      </Toolbar>
-    </StyledAppBar>
+            BizDaily
+          </Typography>
+
+          {/* Desktop Back Button */}
+          <BackButton startIcon={<ArrowBackIcon />} onClick={handleBack}>
+            Back to Home Page
+          </BackButton>
+          
+          {/* Mobile Back Button */}
+          {isMobile && (
+            <IconButton
+              onClick={handleBack}
+              sx={{ color: '#1976d2', mr: 1 }}
+              size="small"
+            >
+              <ArrowBackIcon />
+            </IconButton>
+          )}
+
+          {/* spacer pushes the toggle to the right */}
+          <Box sx={{ flexGrow: 1 }} />
+
+          <DateToggleRoot>
+            <IconButton
+              aria-label="Previous day"
+              size="small"
+              onClick={() => shiftDays(-1)}
+              sx={{ borderRadius: '10px' }}
+            >
+              <ChevronLeftIcon fontSize={isMobile ? "small" : "medium"} />
+            </IconButton>
+
+            <DateLabel>
+              {formatDate(selectedDate)}
+            </DateLabel>
+
+            <IconButton
+              aria-label="Next day"
+              size="small"
+              onClick={() => shiftDays(1)}
+              sx={{ borderRadius: '10px' }}
+            >
+              <ChevronRightIcon fontSize={isMobile ? "small" : "medium"} />
+            </IconButton>
+          </DateToggleRoot>
+        </Toolbar>
+      </StyledAppBar>
+      
+      {/* Mobile Navigation Drawer */}
+      <MobileDrawer
+        anchor="left"
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+      >
+        <List>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                navigate('/');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <ListItemText 
+                primary="Home" 
+                primaryTypographyProps={{ 
+                  fontWeight: 600, 
+                  color: '#1976d2' 
+                }} 
+              />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                navigate('/daily-brief');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <ListItemText primary="Daily Brief" />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </MobileDrawer>
       {/* Body container below AppBar */}
       <Box sx={{ flex: 1, position: 'relative' }}>
         {loading && (
@@ -722,7 +984,16 @@ useEffect(() => {
           </AuroraInlineLoader>
         )}
         {/* Notebook Content */}
-        <Box sx={{ p: 3, maxWidth: '1000px', margin: '0 auto', position: 'relative' }}>
+        <Box sx={{ 
+          p: 3, 
+          maxWidth: '1000px', 
+          margin: '0 auto', 
+          position: 'relative',
+          [theme.breakpoints.down('md')]: {
+            p: 1,
+            maxWidth: '100%',
+          }
+        }}>
           {/* Spiral binding effect */}
           <Box sx={{
             position: 'absolute',
@@ -734,14 +1005,62 @@ useEffect(() => {
             background: 'repeating-linear-gradient(90deg, #ccc 0px, #ccc 20px, transparent 20px, transparent 40px)',
             borderRadius: '5px',
             zIndex: 1,
+            [theme.breakpoints.down('md')]: {
+              width: 'calc(100% - 20px)',
+              top: '15px',
+              height: '8px',
+              background: 'repeating-linear-gradient(90deg, #ccc 0px, #ccc 15px, transparent 15px, transparent 30px)',
+            },
           }} />
           <NotebookPage sx={{ visibility: loading ? 'hidden' : 'visible' }}>
             <NotebookTitle>Daily Funding Brief</NotebookTitle>
             
             {companies.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 8 }}>
-                <Typography sx={{ fontSize: '1.2rem', color: '#000000' }}>
-                  No funding announcements today... yet! 📰
+              <Box sx={{ 
+                textAlign: 'center', 
+                py: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 2
+              }}>
+                <Typography sx={{ 
+                  fontSize: '2rem', 
+                  color: '#000000',
+                  fontFamily: 'serif',
+                  fontWeight: 300,
+                  marginBottom: '12px',
+                  [theme.breakpoints.down('md')]: {
+                    fontSize: '1.6rem',
+                  }
+                }}>
+                  📖
+                </Typography>
+                <Typography sx={{ 
+                  fontSize: '1.3rem', 
+                  color: '#000000',
+                  fontWeight: 600,
+                  marginBottom: '8px',
+                  fontFamily: '"Inter", "Roboto", sans-serif',
+                  [theme.breakpoints.down('md')]: {
+                    fontSize: '1.1rem',
+                  }
+                }}>
+                  No reading material for this date
+                </Typography>
+                <Typography sx={{ 
+                  fontSize: '1rem', 
+                  color: '#666666',
+                  fontStyle: 'italic',
+                  maxWidth: '400px',
+                  lineHeight: '1.5',
+                  [theme.breakpoints.down('md')]: {
+                    fontSize: '0.9rem',
+                    maxWidth: '300px',
+                    padding: '0 16px'
+                  }
+                }}>
+                  This page appears to be empty. Try selecting a different date or check back later for new funding stories.
                 </Typography>
               </Box>
             ) : (

@@ -101,23 +101,6 @@ class BizDailyRunner:
     def start_frontend(self):
         """Start the frontend development server."""
         frontend_dir = self.base_dir / "frontend"
-        
-        # Check if node_modules exists
-        node_modules = frontend_dir / "node_modules"
-        if not node_modules.exists():
-            print(f"📦 Installing frontend dependencies...")
-            try:
-                subprocess.run(
-                    ["npm", "install"],
-                    cwd=str(frontend_dir),
-                    check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
-                )
-            except subprocess.CalledProcessError as e:
-                print(f"❌ Failed to install frontend dependencies: {e}")
-                return False
-        
         try:
             print(f"🎨 Starting frontend server from {frontend_dir}...")
             self.frontend_process = subprocess.Popen(

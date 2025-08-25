@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any
 
 from db_connection_manager import init_funding_db
-from funding_manager import fetch_companies_funded_on_date, fetch_latest_funding_record
+from funding_manager import fetch_companies_funded_on_date
 from llm_service import get_company_details
 from company_detail_manager import (
     single_insert as single_insert_company_details,
@@ -65,16 +65,8 @@ def _get_latest_funded_companies(funding_conn, target_date: str) -> List[Dict[st
     companies_funded_today_name_uuid = fetch_companies_funded_on_date(funding_conn, target_date)
     
     if not companies_funded_today_name_uuid:
-        print(f"No funding entries for date: {target_date}, trying latest available date")
-        latest_funding_record = fetch_latest_funding_record(funding_conn)
-        if latest_funding_record:
-            # Use the date from the latest funding record
-            fallback_date = latest_funding_record['funding_date'][:10]  # Extract YYYY-MM-DD part
-            print(f"Using fallback date: {fallback_date}")
-            companies_funded_today_name_uuid = fetch_companies_funded_on_date(funding_conn, fallback_date)
-        else:
-            print("No funding records found in database")
-            return []
+        print("No funding records found in database")
+        return []
 
     
     print(f"Found {len(companies_funded_today_name_uuid)} companies funded on {target_date}")

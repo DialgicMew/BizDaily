@@ -21,10 +21,19 @@ import {
   IconButton,
   Snackbar,
   Alert,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  useMediaQuery,
+  useTheme,
+  Collapse,
   styled
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import MenuIcon from '@mui/icons-material/Menu';
 
 // Styled components
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -32,6 +41,22 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
   borderBottom: '1px solid #e0e0e0',
 }));
+
+const MobileMenuButton = styled(IconButton)(({ theme }) => ({
+  color: '#1976d2',
+  [theme.breakpoints.up('md')]: {
+    display: 'none',
+  },
+}));
+
+const MobileDrawer = styled(Drawer)(({ theme }) => ({
+  '& .MuiDrawer-paper': {
+    width: '280px',
+    backgroundColor: '#ffffff',
+  },
+}));
+
+
 
 const DailyBriefButton = styled(Button)(({ theme }) => ({
   backgroundColor: '#1976d2',
@@ -43,6 +68,9 @@ const DailyBriefButton = styled(Button)(({ theme }) => ({
   '&:hover': {
     backgroundColor: '#1565c0',
   },
+  [theme.breakpoints.down('md')]: {
+    display: 'none', // Hide on mobile to save space
+  },
 }));
 
 const SearchContainer = styled(Box)(({ theme }) => ({
@@ -51,6 +79,13 @@ const SearchContainer = styled(Box)(({ theme }) => ({
   gap: '16px',
   marginLeft: 'auto',
   marginRight: '16px',
+  [theme.breakpoints.down('md')]: {
+    flexDirection: 'column',
+    gap: '12px',
+    width: '100%',
+    marginLeft: 0,
+    marginRight: 0,
+  },
 }));
 
 const SearchTextField = styled(TextField)(({ theme }) => ({
@@ -71,6 +106,10 @@ const SearchTextField = styled(TextField)(({ theme }) => ({
     padding: '10px 14px',
     fontSize: '14px',
   },
+  [theme.breakpoints.down('md')]: {
+    width: '100%',
+    minWidth: 'unset',
+  },
 }));
 
 const SearchButton = styled(Button)(({ theme }) => ({
@@ -87,6 +126,11 @@ const SearchButton = styled(Button)(({ theme }) => ({
   '&:disabled': {
     backgroundColor: '#cccccc',
     color: '#888888',
+  },
+  [theme.breakpoints.down('md')]: {
+    minWidth: 'unset',
+    padding: '8px 12px',
+    fontSize: '0.75rem',
   },
 }));
 
@@ -105,11 +149,24 @@ const RefreshButton = styled(Button)(({ theme }) => ({
     backgroundColor: '#cccccc',
     color: '#888888',
   },
+  [theme.breakpoints.down('md')]: {
+    minWidth: 'unset',
+    padding: '8px 12px',
+    fontSize: '0.75rem',
+  },
 }));
 
 const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
   maxHeight: 'calc(100vh - 200px)', // Leave space for navbar and pagination
   overflow: 'auto',
+  [theme.breakpoints.down('md')]: {
+    maxHeight: 'calc(100vh - 160px)', // Maximum height minus navbar (64px) + minimal pagination (40px) + padding (56px)
+    minHeight: 'calc(100vh - 160px)', // Same as max to prevent blank space
+    height: 'calc(100vh - 160px)', // Fixed height to show all 25 rows
+    '& .MuiTable-root': {
+      minWidth: '800px', // Allow horizontal scroll on mobile
+    },
+  },
 }));
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -118,6 +175,13 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
   borderBottom: '2px solid #e0e0e0',
   whiteSpace: 'nowrap',
   minWidth: '120px',
+  [theme.breakpoints.down('md')]: {
+    fontSize: 'clamp(0.6rem, 1.6vw, 0.7rem)', // Responsive header font
+    padding: 'clamp(4px, 0.8vh, 8px) clamp(1px, 0.3vw, 4px)', // Responsive header padding
+    minWidth: 'clamp(60px, 12vw, 80px)', // Responsive column width
+    height: 'clamp(24px, 3.5vh, 32px)', // Responsive header height
+    lineHeight: '1.1',
+  },
 }));
 
 const StyledTableRow = styled(TableRow)(({ theme }) => ({
@@ -127,6 +191,16 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
   '&:hover': {
     backgroundColor: '#f0f0f0',
     cursor: 'pointer',
+  },
+  [theme.breakpoints.down('md')]: {
+    // Dynamic height based on screen size - CSS clamp for responsive row height
+    height: 'clamp(26px, 4.5vh, 36px)', // Min 26px, ideal 4.5% of viewport, max 36px
+    minHeight: 'clamp(26px, 4.5vh, 36px)',
+    '& .MuiTableCell-root': {
+      fontSize: 'clamp(0.65rem, 1.8vw, 0.75rem)', // Responsive font size
+      padding: 'clamp(2px, 0.5vh, 6px) clamp(1px, 0.3vw, 4px)', // Responsive padding
+      lineHeight: '1.2',
+    },
   },
 }));
 
@@ -184,7 +258,7 @@ const columns = [
 // API service
 const fetchFundingData = async (
   page: number, 
-  pageSize: number = 10, 
+  pageSize: number = 20, // Dynamic default, will be overridden by smart calculation
   searchQuery?: string
 ): Promise<ApiResponse> => {
   const requestBody: any = {
@@ -283,12 +357,84 @@ interface TableState {
 // Local storage key for state persistence
 const TABLE_STATE_KEY = 'bizDaily_table_state';
 
+// Helper function to calculate optimal page size based on screen dimensions
+const getOptimalPageSize = (isMobile: boolean): number => {
+  if (!isMobile) {
+    return 10; // Desktop default
+  }
+  
+  // Mobile: Calculate based on viewport height and device characteristics
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+  
+  // Fixed UI elements heights on mobile
+  const navbarHeight = 64; // AppBar height
+  const paginationHeight = 40; // Pagination container
+  const paddingAndMargins = 8; // Minimal padding we set
+  const tableHeaderHeight = 28; // Header row height from our styles
+  
+  // Available height for table rows
+  const availableHeight = viewportHeight - navbarHeight - paginationHeight - paddingAndMargins - tableHeaderHeight;
+  
+  // Dynamic row height based on device size
+  let rowHeight = 32; // Base row height
+  
+  // Adjust for very small screens (like iPhone SE)
+  if (viewportHeight < 600) {
+    rowHeight = 28; // Smaller rows for small screens
+  }
+  // Adjust for very large screens (like tablets or large phones)
+  else if (viewportHeight > 900) {
+    rowHeight = 36; // Slightly larger rows for big screens
+  }
+  
+  // Adjust for landscape mode (usually means shorter height)
+  if (viewportWidth > viewportHeight && viewportHeight < 500) {
+    rowHeight = 26; // Extra compact for landscape
+  }
+  
+  // Calculate how many rows fit
+  const maxRows = Math.floor(availableHeight / rowHeight);
+  
+  // Ensure reasonable bounds based on screen size
+  let minRows = 5;
+  let maxRowsLimit = 50;
+  
+  // Adjust bounds for different device types
+  if (viewportHeight < 600) {
+    // Small phones: fewer minimum rows, reasonable maximum
+    minRows = 3;
+    maxRowsLimit = 15;
+  } else if (viewportHeight > 900) {
+    // Large screens/tablets: more rows allowed
+    minRows = 8;
+    maxRowsLimit = 60;
+  }
+  
+  const optimalRows = Math.max(minRows, Math.min(maxRowsLimit, maxRows));
+  
+  console.log(`📱 Mobile page size calculation:
+    Viewport: ${viewportWidth}x${viewportHeight}px
+    Available: ${availableHeight}px  
+    Row height: ${rowHeight}px (adjusted)
+    Raw calculation: ${maxRows} rows
+    Final optimal: ${optimalRows} rows`);
+    
+  return optimalRows;
+};
+
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false);
   
   // Initialize state from URL params or localStorage
   const getInitialTableState = (): TableState => {
+    const optimalPageSize = getOptimalPageSize(isMobile);
+    
     // First try URL parameters
     const urlPage = searchParams.get('page');
     const urlPageSize = searchParams.get('pageSize');
@@ -309,7 +455,7 @@ const Home: React.FC = () => {
       
       return {
         page: parseInt(urlPage || '1', 10),
-        pageSize: parseInt(urlPageSize || '10', 10),
+        pageSize: parseInt(urlPageSize || optimalPageSize.toString(), 10),
         searchQuery: urlSearchQuery || undefined,
         filters,
         orderBy
@@ -320,16 +466,21 @@ const Home: React.FC = () => {
     const savedState = localStorage.getItem(TABLE_STATE_KEY);
     if (savedState) {
       try {
-        return JSON.parse(savedState);
+        const parsed = JSON.parse(savedState);
+        // Update page size to optimal for current device if it's still default
+        if (parsed.pageSize === 10 || parsed.pageSize === 25) {
+          parsed.pageSize = optimalPageSize;
+        }
+        return parsed;
       } catch (e) {
         console.warn('Failed to parse saved table state');
       }
     }
     
-    // Default state
+    // Default state with device-optimal page size
     return {
       page: 1,
-      pageSize: 10,
+      pageSize: optimalPageSize,
       searchQuery: undefined,
       filters: {},
       orderBy: []
@@ -347,11 +498,83 @@ const Home: React.FC = () => {
 
   // Update state when URL changes (browser back/forward)
   useEffect(() => {
-    const newState = getInitialTableState();
-    if (JSON.stringify(newState) !== JSON.stringify(tableState)) {
-      setTableState(newState);
+    const urlPage = searchParams.get('page');
+    const urlPageSize = searchParams.get('pageSize');
+    const urlSearchQuery = searchParams.get('search');
+    const urlFilters = searchParams.get('filters');
+    const urlOrderBy = searchParams.get('orderBy');
+    
+    if (urlPage || urlSearchQuery) {
+      let filters = {};
+      let orderBy: Array<{ field: string; direction: 'asc' | 'desc' }> = [];
+      
+      try {
+        if (urlFilters) filters = JSON.parse(urlFilters);
+        if (urlOrderBy) orderBy = JSON.parse(urlOrderBy);
+      } catch (e) {
+        console.warn('Failed to parse URL parameters');
+      }
+      
+      const optimalPageSize = getOptimalPageSize(isMobile);
+      const newState = {
+        page: parseInt(urlPage || '1', 10),
+        pageSize: parseInt(urlPageSize || optimalPageSize.toString(), 10),
+        searchQuery: urlSearchQuery || undefined,
+        filters,
+        orderBy
+      };
+      
+      if (JSON.stringify(newState) !== JSON.stringify(tableState)) {
+        setTableState(newState);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, tableState, isMobile]);
+  
+  // Update page size when device type changes (mobile/desktop) or viewport size changes
+  useEffect(() => {
+    const calculateAndUpdatePageSize = () => {
+      const optimalPageSize = getOptimalPageSize(isMobile);
+      if (tableState.pageSize !== optimalPageSize) {
+        setTableState(prevState => ({
+          ...prevState,
+          pageSize: optimalPageSize,
+          page: 1 // Reset to first page when changing page size
+        }));
+      }
+    };
+
+    // Initial calculation
+    calculateAndUpdatePageSize();
+
+    // Debounced resize handler to avoid excessive calculations
+    let resizeTimeout: NodeJS.Timeout;
+    const handleResize = () => {
+      if (isMobile) {
+        // Clear previous timeout
+        clearTimeout(resizeTimeout);
+        // Set new timeout to debounce rapid resize events
+        resizeTimeout = setTimeout(() => {
+          calculateAndUpdatePageSize();
+        }, 150); // 150ms delay to debounce
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', () => {
+      // For orientation change, add small delay to ensure viewport has updated
+      setTimeout(handleResize, 300);
+    });
+
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+      // Clean up any pending timeout
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+    };
+  }, [isMobile, tableState.pageSize]);
   
   // Update URL and localStorage when table state changes
   const updateTableState = (newState: Partial<TableState>) => {
@@ -478,16 +701,93 @@ const Home: React.FC = () => {
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      [theme.breakpoints.down('md')]: {
+        height: '100vh',
+        maxHeight: '100vh',
+      }
     }}>
       {/* Top Navbar */}
       <StyledAppBar position="static">
         <Toolbar>
+          {/* Mobile Menu Button */}
+          <MobileMenuButton
+            edge="start"
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            <MenuIcon />
+          </MobileMenuButton>
+
+          {/* BizDaily Branding */}
+          <Typography 
+            variant="h6" 
+            component="div" 
+            sx={{ 
+              fontWeight: 700,
+              color: '#1976d2',
+              fontSize: { xs: '1.1rem', md: '1.25rem' },
+              marginLeft: { xs: 1, md: 0 },
+              marginRight: { xs: 'auto', md: 2 },
+              cursor: 'pointer'
+            }}
+            onClick={() => navigate('/')}
+          >
+            BizDaily
+          </Typography>
+
+          {/* Desktop Daily Brief Button */}
           <DailyBriefButton onClick={() => navigate('/daily-brief')}>
             Daily Brief
           </DailyBriefButton>
+
+          {/* Mobile Search Toggle */}
+          {isMobile && (
+            <IconButton
+              onClick={() => setMobileSearchExpanded(!mobileSearchExpanded)}
+              sx={{ color: '#1976d2' }}
+            >
+              <SearchIcon />
+            </IconButton>
+          )}
           
-          <SearchContainer>
+          {/* Desktop Search Container */}
+          {!isMobile && (
+            <SearchContainer>
+              <SearchTextField
+                size="small"
+                placeholder="Search companies, investors, sectors..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyPress={handleSearchKeyPress}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: '#666', fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ width: '300px' }}
+              />
+              <SearchButton 
+                onClick={handleSearch}
+                disabled={loading}
+              >
+                Search
+              </SearchButton>
+              <RefreshButton 
+                onClick={handleRefresh}
+                disabled={loading || refreshing}
+                startIcon={refreshing ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
+              >
+                {refreshing ? 'Refreshing...' : 'Refresh Data'}
+              </RefreshButton>
+            </SearchContainer>
+          )}
+        </Toolbar>
+        
+        {/* Mobile Search Bar Collapse */}
+        <Collapse in={mobileSearchExpanded && isMobile}>
+          <Box sx={{ p: 2, borderTop: '1px solid #e0e0e0', backgroundColor: '#f8f9fa' }}>
             <SearchTextField
               size="small"
               placeholder="Search companies, investors, sectors..."
@@ -501,24 +801,64 @@ const Home: React.FC = () => {
                   </InputAdornment>
                 ),
               }}
-              sx={{ width: '300px' }}
+              sx={{ width: '100%', mb: 1 }}
             />
-            <SearchButton 
-              onClick={handleSearch}
-              disabled={loading}
-            >
-              Search
-            </SearchButton>
-            <RefreshButton 
-              onClick={handleRefresh}
-              disabled={loading || refreshing}
-              startIcon={refreshing ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
-            >
-              {refreshing ? 'Refreshing...' : 'Refresh Data'}
-            </RefreshButton>
-          </SearchContainer>
-        </Toolbar>
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+              <SearchButton 
+                onClick={handleSearch}
+                disabled={loading}
+                size="small"
+              >
+                Search
+              </SearchButton>
+              <RefreshButton 
+                onClick={handleRefresh}
+                disabled={loading || refreshing}
+                startIcon={refreshing ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
+                size="small"
+              >
+                {refreshing ? 'Sync' : 'Sync'}
+              </RefreshButton>
+            </Box>
+          </Box>
+        </Collapse>
       </StyledAppBar>
+      
+      {/* Mobile Navigation Drawer */}
+      <MobileDrawer
+        anchor="left"
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+      >
+        <List>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                navigate('/daily-brief');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <ListItemText 
+                primary="Daily Brief" 
+                primaryTypographyProps={{ 
+                  fontWeight: 600, 
+                  color: '#1976d2' 
+                }} 
+              />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                navigate('/');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <ListItemText primary="Home" />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </MobileDrawer>
       
       {/* Main Content Area */}
       <Box sx={{ 
@@ -526,11 +866,42 @@ const Home: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         p: 3,
-        overflow: 'hidden'
+        overflow: 'hidden',
+        [theme.breakpoints.down('md')]: {
+          p: 0.25, // Ultra minimal padding on mobile
+          pb: 0, // No bottom padding
+          height: 'calc(100vh - 64px)', // Full height minus navbar
+          maxHeight: 'calc(100vh - 64px)',
+        }
       }}>
         {/* Table Container */}
-        <Paper sx={{ borderRadius: '12px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #e0e0e0' }}>
-          <StyledTableContainer sx={{ flex: 1, mb: 2 }}>
+        <Paper sx={{ 
+          borderRadius: '12px', 
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', 
+          border: '1px solid #e0e0e0',
+          flex: 1, // Take up available space
+          display: 'flex',
+          flexDirection: 'column',
+          [theme.breakpoints.down('md')]: {
+            borderRadius: '4px',
+            margin: '0',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+            flex: 1,
+            height: 'calc(100vh - 108px)', // Height minus navbar (64px) + pagination (40px) + tiny padding (4px)
+            maxHeight: 'calc(100vh - 108px)',
+          }
+        }}>
+          <StyledTableContainer sx={{ 
+            flex: 1, 
+            mb: 2,
+            [theme.breakpoints.down('md')]: {
+              mb: 0, // No margin on mobile
+              flex: 1,
+              height: 'calc(100vh - 148px)', // Max space for table: total height - navbar - pagination - minimal padding
+              maxHeight: 'calc(100vh - 148px)',
+              minHeight: 'calc(100vh - 148px)',
+            }
+          }}>
             {loading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
                 <CircularProgress />
@@ -561,7 +932,12 @@ const Home: React.FC = () => {
                           key={column}
                           sx={{ 
                             whiteSpace: 'nowrap',
-                            minWidth: '120px'
+                            minWidth: '120px',
+                            [theme.breakpoints.down('md')]: {
+                              fontSize: '0.75rem',
+                              padding: '8px 4px',
+                              minWidth: '80px',
+                            },
                           }}
                         >
                           {formatCellValue(row[column], column)}
@@ -580,16 +956,27 @@ const Home: React.FC = () => {
           display: 'flex', 
           justifyContent: 'center',
           alignItems: 'center',
-          py: 2
+          py: 2,
+          [theme.breakpoints.down('md')]: {
+            py: 0.125, // Ultra minimal padding on mobile
+            height: '40px', // Fixed height exactly
+            minHeight: '40px',
+            maxHeight: '40px',
+            flexShrink: 0, // Don't let it shrink
+            backgroundColor: '#ffffff',
+            borderTop: '1px solid #e0e0e0',
+          }
         }}>
           <Pagination 
             count={totalPages}
             page={tableState.page}
             onChange={handlePageChange}
             color="primary"
-            size="large"
-            showFirstButton
-            showLastButton
+            size={isMobile ? "small" : "large"}
+            showFirstButton={!isMobile}
+            showLastButton={!isMobile}
+            siblingCount={isMobile ? 0 : 1}
+            boundaryCount={isMobile ? 1 : 2}
             disabled={loading}
           />
         </Box>

@@ -11,9 +11,18 @@ import {
   Chip,
   Link,
   Divider,
-  styled
+  styled,
+  useMediaQuery,
+  useTheme,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  IconButton
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import MenuIcon from '@mui/icons-material/Menu';
 
 // Styled components matching home page design
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -32,6 +41,23 @@ const BackButton = styled(Button)(({ theme }) => ({
   '&:hover': {
     backgroundColor: '#1565c0',
   },
+  [theme.breakpoints.down('md')]: {
+    display: 'none', // Hide on mobile to save space
+  },
+}));
+
+const MobileMenuButton = styled(IconButton)(({ theme }) => ({
+  color: '#1976d2',
+  [theme.breakpoints.up('md')]: {
+    display: 'none',
+  },
+}));
+
+const MobileDrawer = styled(Drawer)(({ theme }) => ({
+  '& .MuiDrawer-paper': {
+    width: '280px',
+    backgroundColor: '#ffffff',
+  },
 }));
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
@@ -40,6 +66,11 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
   border: '1px solid #e0e0e0',
   padding: '24px',
   marginBottom: '24px',
+  [theme.breakpoints.down('md')]: {
+    borderRadius: '8px',
+    padding: '16px',
+    marginBottom: '16px',
+  },
 }));
 
 const SectionTitle = styled(Typography)(({ theme }) => ({
@@ -47,6 +78,13 @@ const SectionTitle = styled(Typography)(({ theme }) => ({
   fontSize: '1.5rem',
   marginBottom: '16px',
   color: '#1976d2',
+  [theme.breakpoints.down('md')]: {
+    fontSize: '1.3rem',
+    marginBottom: '12px',
+  },
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '1.2rem',
+  },
 }));
 
 const DataLabel = styled(Typography)(({ theme }) => ({
@@ -54,6 +92,10 @@ const DataLabel = styled(Typography)(({ theme }) => ({
   fontSize: '0.9rem',
   color: '#666',
   marginBottom: '4px',
+  [theme.breakpoints.down('md')]: {
+    fontSize: '0.8rem',
+    marginBottom: '2px',
+  },
 }));
 
 const DataValue = styled(Typography)(({ theme }) => ({
@@ -61,6 +103,10 @@ const DataValue = styled(Typography)(({ theme }) => ({
   color: '#333',
   marginBottom: '16px',
   wordBreak: 'break-word',
+  [theme.breakpoints.down('md')]: {
+    fontSize: '0.9rem',
+    marginBottom: '12px',
+  },
 }));
 
 const QuestionTitle = styled(Typography)(({ theme }) => ({
@@ -69,6 +115,14 @@ const QuestionTitle = styled(Typography)(({ theme }) => ({
   color: '#1976d2',
   marginBottom: '12px',
   marginTop: '24px',
+  [theme.breakpoints.down('md')]: {
+    fontSize: '1.1rem',
+    marginBottom: '8px',
+    marginTop: '16px',
+  },
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '1rem',
+  },
 }));
 
 const DetailAnswer = styled(Box)(({ theme }) => ({
@@ -92,6 +146,21 @@ const DetailAnswer = styled(Box)(({ theme }) => ({
   },
   '& li': {
     marginBottom: '4px',
+  },
+  [theme.breakpoints.down('md')]: {
+    fontSize: '0.9rem',
+    lineHeight: '1.5',
+    marginBottom: '20px',
+    '& p': {
+      margin: '0 0 8px 0',
+    },
+    '& ul': {
+      paddingLeft: '16px',
+    },
+  },
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '0.85rem',
+    marginBottom: '16px',
   },
 }));
 
@@ -336,6 +405,9 @@ const processLinksInText = (text: string): React.ReactNode => {
 const FundingDetail: React.FC = () => {
   const { fundingUuid } = useParams<{ fundingUuid: string }>();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [fundingData, setFundingData] = useState<FundingData | null>(null);
   const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
   const [loadingCompanyDetails, setLoadingCompanyDetails] = useState(true);
@@ -387,20 +459,116 @@ const FundingDetail: React.FC = () => {
       {/* Top Navbar */}
       <StyledAppBar position="static">
         <Toolbar>
+          {/* Mobile Menu Button */}
+          <MobileMenuButton
+            edge="start"
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            <MenuIcon />
+          </MobileMenuButton>
+
+          {/* BizDaily Branding */}
+          <Typography 
+            variant="h6" 
+            component="div" 
+            sx={{ 
+              fontWeight: 700,
+              color: '#1976d2',
+              fontSize: { xs: '1.1rem', md: '1.25rem' },
+              marginLeft: { xs: 1, md: 0 },
+              marginRight: { xs: 'auto', md: 2 },
+              cursor: 'pointer'
+            }}
+            onClick={() => navigate('/')}
+          >
+            BizDaily
+          </Typography>
+
+          {/* Desktop Back Button */}
           <BackButton startIcon={<ArrowBackIcon />} onClick={handleBack}>
             Back to Home Page
           </BackButton>
+          
+          {/* Mobile Back Button */}
+          {isMobile && (
+            <IconButton
+              onClick={handleBack}
+              sx={{ color: '#1976d2' }}
+              size="small"
+            >
+              <ArrowBackIcon />
+            </IconButton>
+          )}
         </Toolbar>
       </StyledAppBar>
       
+      {/* Mobile Navigation Drawer */}
+      <MobileDrawer
+        anchor="left"
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+      >
+        <List>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                navigate('/');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <ListItemText 
+                primary="Home" 
+                primaryTypographyProps={{ 
+                  fontWeight: 600, 
+                  color: '#1976d2' 
+                }} 
+              />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => {
+                navigate('/daily-brief');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <ListItemText primary="Daily Brief" />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </MobileDrawer>
+      
       {/* Main Content */}
-      <Box sx={{ p: 3, maxWidth: '1400px', margin: '0 auto' }}>
+      <Box sx={{ 
+        p: 3, 
+        maxWidth: '1400px', 
+        margin: '0 auto',
+        [theme.breakpoints.down('md')]: {
+          p: 1,
+          maxWidth: '100%',
+        }
+      }}>
         {/* Section 1: Funding Information */}
         <StyledPaper>
           <SectionTitle>Funding Details</SectionTitle>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: 4,
+            [theme.breakpoints.down('md')]: {
+              flexDirection: 'column',
+              gap: 2,
+            }
+          }}>
             {/* Basic Info */}
-            <Box sx={{ flex: '1 1 300px', minWidth: '300px' }}>
+            <Box sx={{ 
+              flex: '1 1 300px', 
+              minWidth: '300px',
+              [theme.breakpoints.down('md')]: {
+                minWidth: 'unset',
+                flex: 'unset',
+              }
+            }}>
               <DataLabel>Company Name</DataLabel>
               <DataValue variant="h6" sx={{ fontWeight: 600, color: '#1976d2' }}>
                 {fundingData.company_name}
@@ -418,7 +586,11 @@ const FundingDetail: React.FC = () => {
                   backgroundColor: '#e3f2fd', 
                   color: '#1976d2',
                   fontWeight: 600,
-                  mb: 2 
+                  mb: 2,
+                  [theme.breakpoints.down('md')]: {
+                    fontSize: '0.75rem',
+                    height: '24px',
+                  }
                 }} 
               />
               
@@ -427,7 +599,14 @@ const FundingDetail: React.FC = () => {
             </Box>
             
             {/* Location & Stage Info */}
-            <Box sx={{ flex: '1 1 300px', minWidth: '300px' }}>
+            <Box sx={{ 
+              flex: '1 1 300px', 
+              minWidth: '300px',
+              [theme.breakpoints.down('md')]: {
+                minWidth: 'unset',
+                flex: 'unset',
+              }
+            }}>
               <DataLabel>Company Location</DataLabel>
               <DataValue>{fundingData.company_location || 'N/A'}</DataValue>
               
@@ -444,13 +623,24 @@ const FundingDetail: React.FC = () => {
                   backgroundColor: '#f3e5f5', 
                   color: '#7b1fa2',
                   fontWeight: 600,
-                  mb: 2 
+                  mb: 2,
+                  [theme.breakpoints.down('md')]: {
+                    fontSize: '0.75rem',
+                    height: '24px',
+                  }
                 }} 
               />
             </Box>
             
             {/* Business Info */}
-            <Box sx={{ flex: '1 1 300px', minWidth: '300px' }}>
+            <Box sx={{ 
+              flex: '1 1 300px', 
+              minWidth: '300px',
+              [theme.breakpoints.down('md')]: {
+                minWidth: 'unset',
+                flex: 'unset',
+              }
+            }}>
               <DataLabel>Sector</DataLabel>
               <DataValue>{fundingData.sector || 'N/A'}</DataValue>
               
