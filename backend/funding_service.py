@@ -52,7 +52,8 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
         # Search fields for fuzzy matching
         search_fields = [
             'company_name', 'funded_company_name', 'sector', 'sub_sector',
-            'investor_names', 'lead_investors', 'funding_stage', 'funding_type'
+            'investor_names', 'lead_investors', 'funding_stage', 'funding_type',
+            'company_location', 'funded_city', 'funded_state', 'funded_country'
         ]
         
         # Build base queries with search relevance scoring

@@ -25,47 +25,7 @@ class BizDailyRunner:
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
-    
-    def sync_funding_data(self):
-        """Sync funding data before starting services."""
-        backend_dir = self.base_dir / "backend"
-        venv_python = backend_dir / "venv_new" / "bin" / "python"
-        
-        if not venv_python.exists():
-            print(f"❌ Virtual environment not found at {venv_python}")
-            return False
-        
-        try:
-            print("📊 Syncing funding data...")
-            print("   This may take a few minutes for the first run...")
-            
-            # Run the funding sync script
-            result = subprocess.run(
-                [str(venv_python), "-c", "from funding_service import bulk_save_funding_data; bulk_save_funding_data()"],
-                cwd=str(backend_dir),
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minute timeout
-            )
-            
-            if result.returncode == 0:
-                print("✅ Funding data sync completed successfully")
-                if result.stdout:
-                    print(f"   Output: {result.stdout.strip()}")
-                return True
-            else:
-                print(f"❌ Funding data sync failed with exit code {result.returncode}")
-                if result.stderr:
-                    print(f"   Error: {result.stderr.strip()}")
-                return False
-                
-        except subprocess.TimeoutExpired:
-            print("⏰ Funding data sync timed out (5 minutes)")
-            return False
-        except Exception as e:
-            print(f"❌ Error during funding data sync: {e}")
-            return False
-    
+   
     def _signal_handler(self, signum, frame):
         """Handle interrupt signals and cleanup processes."""
         print(f"\n🛑 Received signal {signum}. Shutting down...")
@@ -191,13 +151,6 @@ class BizDailyRunner:
         print("🌟 BizDaily Application Runner")
         print("=" * 40)
         
-        # Sync funding data first
-        print("🔄 Step 1: Syncing funding data...")
-        if not self.sync_funding_data():
-            print("⚠️  Funding data sync failed, but continuing with service startup...")
-            print("   You can manually sync later if needed.")
-        else:
-            print("✅ Step 1 Complete: Funding data is up to date")
         
         # Start backend
         print("\n🔄 Step 2: Starting backend server...")
