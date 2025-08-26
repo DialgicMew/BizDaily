@@ -27,9 +27,9 @@ def _db_operation(func, *args, **kwargs):
     """Execute a database operation in a thread."""
     return func(*args, **kwargs)
 
-def _llm_operation(func, *args, **kwargs):
-    """Execute an LLM operation in a thread."""
-    return func(*args, **kwargs)
+async def _llm_operation_async(func, *args, **kwargs):
+    """Execute an async LLM operation."""
+    return await func(*args, **kwargs)
 
 async def get_company_details_by_funding_uuid(funding_uuid: int, generate_if_missing: bool = True) -> Dict[str, Any] | None:
     """
@@ -73,15 +73,10 @@ async def get_company_details_by_funding_uuid(funding_uuid: int, generate_if_mis
         
     print(f"No existing details found. Generating details for company: {company_name}")
     
-    # Step 4: Generate details using LLM service (run in thread pool)
+    # Step 4: Generate details using LLM service (async - no thread pool needed!)
     print(f"Generating details for company: {company_name}, funding_uuid: {funding_uuid}")
     try:
-        name, llm_details = await loop.run_in_executor(
-            llm_executor, 
-            _llm_operation, 
-            get_company_details, 
-            company_name
-        )
+        name, llm_details = await get_company_details(company_name)
         
         if not llm_details:
             raise Exception("LLM service returned empty details")

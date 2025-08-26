@@ -107,12 +107,66 @@ def _get_latest_funded_companies(funding_conn, target_date: str) -> List[Dict[st
     
     return all_results
 
-def get_multiple_company_details(companies: List[str], funding_conn, companies_funded_today_name_uuid) -> List[Dict[str, Any]]:
+async def get_multiple_company_details_async(companies: List[str], companies_funded_today_name_uuid) -> List[Dict[str, Any]]:
+    """Process multiple companies in parallel for maximum efficiency."""
+    
+    async def process_single_company(company: str) -> Dict[str, Any]:
+        """Process a single company: get LLM details and store in database."""
+        try:
+            # Get LLM details (async)
+            company_name, company_detail = await get_company_details(company)
+            
+            # Store in database (in thread pool)
+            def store_details():
+                conn = init_funding_db()
+                try:
+                    return single_insert_company_details(
+                        conn=conn, 
+                        detail=company_detail, 
+                        name_to_uuid=companies_funded_today_name_uuid, 
+                        company_name=company_name
+                    )
+                finally:
+                    conn.close()
+            
+            loop = asyncio.get_event_loop()
+            inserted_row = await loop.run_in_executor(brief_db_executor, store_details)
+            
+            print(f"✅ Processed and stored details for {company}")
+            return inserted_row
+            
+        except Exception as e:
+            print(f"❌ Failed to process {company}: {str(e)}")
+            # Return a minimal record for failed companies
+            return {
+                "company_name": company,
+                "error": f"Failed to process: {str(e)}",
+                "generated_on": None
+            }
+    
+    # Process all companies in parallel using asyncio.gather
+    print(f"🚀 Processing {len(companies)} companies in parallel...")
+    tasks = [process_single_company(company) for company in companies]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Filter out exceptions and return successful results
     companies_detail = []
-    for company in companies:
-        company_name, company_detail = get_company_details(company)
-        with funding_conn:
-            inserted_row = single_insert_company_details(conn=funding_conn, detail=company_detail, name_to_uuid=companies_funded_today_name_uuid, company_name=company_name)
-        companies_detail.append(inserted_row)
-        print(f"Stored company details for {company}.")
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            print(f"❌ Exception processing {companies[i]}: {result}")
+            # Add error record
+            companies_detail.append({
+                "company_name": companies[i],
+                "error": str(result),
+                "generated_on": None
+            })
+        else:
+            companies_detail.append(result)
+    
+    print(f"✅ Completed processing {len(companies_detail)} companies")
     return companies_detail
+
+# Backward compatibility wrapper
+def get_multiple_company_details(companies: List[str], funding_conn, companies_funded_today_name_uuid) -> List[Dict[str, Any]]:
+    """Synchronous wrapper for backward compatibility."""
+    return asyncio.run(get_multiple_company_details_async(companies, companies_funded_today_name_uuid))

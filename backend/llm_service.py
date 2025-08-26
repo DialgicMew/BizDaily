@@ -6,7 +6,7 @@ import os
 import re
 from dotenv import load_dotenv
 import httpx
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 
 _VAL_LINE_RE = re.compile(r"\*\*Valuation:\*\*\s*(.*)")
@@ -17,10 +17,11 @@ _SOURCES_RE = re.compile(r"\*\*Sources:\*\*\s*(.*)")
 
 load_dotenv()
 
-http_client = httpx.Client()
-client = OpenAI(
+# Use async HTTP client for better concurrency
+async_http_client = httpx.AsyncClient(timeout=60.0)
+async_client = AsyncOpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
-    http_client=http_client
+    http_client=async_http_client
 )
 
 
@@ -55,7 +56,7 @@ def _split_funding_line(line: str):
     return stage, amount, date_, lead_investors
 
 
-def get_company_details(company: str) -> tuple[str, dict[str, Any]]:
+async def get_company_details(company: str) -> tuple[str, dict[str, Any]]:
 
     print(f"Now fetching details for: {company} ... wait ...")
 
@@ -148,7 +149,7 @@ FORMATTING RULES
     if force_web_search:
         request_params["tool_choice"] = {"type": "web_search_preview"}
 
-    response = client.responses.create(**request_params)
+    response = await async_client.responses.create(**request_params)
 
     print(response)
 
@@ -158,6 +159,7 @@ FORMATTING RULES
         return company, sections
     except Exception as e:
         print("Failed to extract sections:", e)
+        raise Exception(f"Failed to process LLM response for {company}: {str(e)}")
 
 def extract_sections(output_text: str) -> dict:
     """
