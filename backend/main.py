@@ -4,6 +4,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 # Import controllers with error handling
 try:
     from funding_controller import app as funding_app
@@ -90,6 +94,7 @@ async def debug_info():
         "env_vars": {
             "ENVIRONMENT": os.getenv("ENVIRONMENT", "not_set"),
             "OPENAI_API_KEY": "set" if os.getenv("OPENAI_API_KEY") else "not_set",
+            "DATABASE_URL": "set" if os.getenv("DATABASE_URL") else "not_set",
             "ALLOWED_ORIGINS": os.getenv("ALLOWED_ORIGINS", "not_set")
         },
         "services_loaded": {

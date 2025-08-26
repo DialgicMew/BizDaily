@@ -1,18 +1,17 @@
 """database.py – structured storage helper for Inc42 funding data.
 
-This module defines the SQLite schema for the `funding` table and provides
+This module defines the PostgreSQL schema for the `funding` table and provides
 convenience functions to initialise the database and bulk-insert records that
 come directly from the Inc42 API.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import sqlite3
 from typing import Any, Dict, List
 
 
 INSERT_SQL = """
-INSERT OR IGNORE INTO funding (
+INSERT INTO funding (
     funding_uuid,
     company_uuid,
     company_name,
@@ -44,15 +43,15 @@ INSERT OR IGNORE INTO funding (
     document_updated_at,
     data_created_date
 ) VALUES (
-    ?,?,?,?,?,?,?,?,?,?,
-    ?,?,?,?,?,?,?,?,?,?,
-    ?,?,?,?,?,?,?,?,?,?
-);
+    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+) ON CONFLICT (funding_uuid) DO NOTHING;
 """
 
 def flatten_record(rec: Dict[str, Any]) -> List[Any]:
     """Extract ordered column values from a raw API record dict."""
-    data_created_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+    data_created_date = datetime.now(timezone.utc).isoformat()
     return [
         rec.get("funding_uuid"),
         rec.get("company_uuid"),
@@ -91,49 +90,50 @@ def save_records(conn, records: List[dict]):
     """Wrapper around bulk_insert from database.py for clarity."""
     bulk_insert(conn, records)
     
-def bulk_insert(conn: sqlite3.Connection, records: List[Dict[str, Any]]) -> None:
+def bulk_insert(conn, records: List[Dict[str, Any]]) -> None:
     """Insert a list of funding dicts in one transaction (ignores duplicates)."""
     rows = [flatten_record(r) for r in records]
-    with conn:
-        conn.executemany(INSERT_SQL, rows)
+    with conn.cursor() as cur:
+        cur.executemany(INSERT_SQL, rows)
+    conn.commit()
 
 def fetch_companies_funded_on_date(
-    conn: sqlite3.Connection,
+    conn,
     target_date_iso: str,
 ) -> Dict[str, int]:
 
-    cur = conn.execute(
-        """
-        SELECT funding_uuid,
-               IFNULL(company_name, funded_company_name) AS name
-          FROM funding
-         WHERE date(funding_date) = ?
-        """,
-        (target_date_iso,),
-    )
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT funding_uuid,
+                   COALESCE(company_name, funded_company_name) AS name
+              FROM funding
+             WHERE DATE(funding_date) = %s
+            """,
+            (target_date_iso,),
+        )
+        rows = cur.fetchall()
 
-    rows = cur.fetchall()
+        name_to_uuid: Dict[str, int] = {}
+        for row in rows:
+            funding_uuid = row['funding_uuid']
+            name = row['name']
+            if name:
+                if name not in name_to_uuid or funding_uuid > name_to_uuid[name]:
+                    name_to_uuid[name] = funding_uuid
 
-    name_to_uuid: Dict[str, int] = {}
-    for funding_uuid, name in rows:
-        if name:
-            if name not in name_to_uuid or funding_uuid > name_to_uuid[name]:
-                name_to_uuid[name] = funding_uuid
+        return name_to_uuid
 
-    return name_to_uuid
-
-def fetch_latest_funding_record(conn: sqlite3.Connection) -> Dict[str, Any] | None:
-    # Configure row factory for dict-like access
-    conn.row_factory = sqlite3.Row  # type: ignore[assignment]
-    
-    cur = conn.execute(
-        """
-        SELECT *
-          FROM funding
-         ORDER BY funding_uuid DESC
-         LIMIT 1
-        """
-    )
-    
-    row = cur.fetchone()
-    return dict(row) if row else None
+def fetch_latest_funding_record(conn) -> Dict[str, Any] | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT *
+              FROM funding
+             ORDER BY funding_uuid DESC
+             LIMIT 1
+            """
+        )
+        
+        row = cur.fetchone()
+        return dict(row) if row else None

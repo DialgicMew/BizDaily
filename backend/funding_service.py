@@ -6,6 +6,43 @@ from db_connection_manager import init_funding_db
 from funding_manager import bulk_insert, save_records
 from inc42Client import fetch_page
 
+# No parameter conversion needed - using PostgreSQL natively
+
+
+def format_funding_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Format a raw database row for frontend consumption."""
+    formatted = row.copy()
+    
+    # Handle null values - replace None with empty string or appropriate defaults
+    for key, value in formatted.items():
+        if value is None:
+            formatted[key] = ""
+    
+    # Format currency amounts
+    if 'amount_raised_in_usd' in formatted and formatted['amount_raised_in_usd']:
+        try:
+            amount = float(formatted['amount_raised_in_usd'])
+            if amount >= 1_000_000:
+                formatted['amount_raised_in_usd'] = f"${amount/1_000_000:.1f}M"
+            elif amount >= 1_000:
+                formatted['amount_raised_in_usd'] = f"${amount/1_000:.0f}K"
+            else:
+                formatted['amount_raised_in_usd'] = f"${amount:.0f}"
+        except (ValueError, TypeError):
+            formatted['amount_raised_in_usd'] = "N/A"
+    
+    # Format funding_date to ensure proper date format
+    if 'funding_date' in formatted and formatted['funding_date']:
+        try:
+            # Ensure date is in YYYY-MM-DD format
+            date_str = str(formatted['funding_date'])
+            if len(date_str) >= 10:  # Basic validation
+                formatted['funding_date'] = date_str[:10]  # Take first 10 chars (YYYY-MM-DD)
+        except:
+            formatted['funding_date'] = ""
+    
+    return formatted
+
 
 def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = None, 
                               page: int = 0, page_size: int = 25, order_by: Optional[List[Tuple[str, str]]] = None,
@@ -25,7 +62,7 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
             search_term = f"%{search_query.strip()}%"
             
             for field in search_fields:
-                relevance_parts.append(f"CASE WHEN {field} LIKE ? THEN 1 ELSE 0 END")
+                relevance_parts.append(f"CASE WHEN {field} LIKE %s THEN 1 ELSE 0 END")
             
             relevance_sql = " + ".join(relevance_parts)
             sql = f"SELECT *, ({relevance_sql}) AS relevance_score FROM funding"
@@ -37,8 +74,22 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
         params: List[Any] = []
         count_params: List[Any] = []
 
-        # List of valid column names (cache per connection)
-        valid_cols = {row[1] for row in conn.execute("PRAGMA table_info(funding)")}
+        # List of valid column names - PostgreSQL version
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'funding'"
+            )
+            rows = cur.fetchall()
+            
+            # Extract column names safely
+            if rows and hasattr(rows[0], 'keys'):
+                # It's a dict-like object (RealDictRow)
+                valid_cols = {row['column_name'] for row in rows}
+            elif rows:
+                # It's a tuple/list
+                valid_cols = {row[0] for row in rows}
+            else:
+                valid_cols = set()
 
         # Build WHERE clauses
         where_clauses = []
@@ -49,7 +100,7 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
             search_conditions = []
             
             for field in search_fields:
-                search_conditions.append(f"{field} LIKE ?")
+                search_conditions.append(f"{field} LIKE %s")
                 params.append(search_term)
                 count_params.append(search_term)
             
@@ -66,7 +117,7 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
                     raise ValueError(f"Unknown filter column '{col}'.")
                 if not values:
                     return {"data": [], "total": 0, "page": page, "page_size": page_size}
-                placeholders = ",".join(["?"] * len(values))
+                placeholders = ",".join(["%s"] * len(values))
                 where_clauses.append(f"{col} IN ({placeholders})")
                 params.extend(values)
                 count_params.extend(values)
@@ -78,8 +129,14 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
             count_sql += where_clause
 
         # Get total count for pagination
-        cur_count = conn.execute(count_sql, count_params)
-        total = cur_count.fetchone()[0]
+        with conn.cursor() as cur_count:
+            cur_count.execute(count_sql, count_params)
+            count_result = cur_count.fetchone()
+            # PostgreSQL with RealDictCursor returns dict-like objects
+            if hasattr(count_result, 'keys'):
+                total = count_result['count']
+            else:
+                total = count_result[0]
 
         # Build ORDER BY clause
         if search_query and search_query.strip():
@@ -110,12 +167,19 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
                 sql += " ORDER BY funding_date DESC, funding_uuid DESC"
 
         # Add pagination to query
-        sql += " LIMIT ? OFFSET ?"
+        sql += " LIMIT %s OFFSET %s"
         params.extend([page_size, page * page_size])
 
-        cur = conn.execute(sql, params)
-        columns = [desc[0] for desc in cur.description]
-        rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            # RealDictCursor already returns dict-like objects, just convert to regular dicts
+            raw_rows = [dict(row) for row in cur.fetchall()]
+
+        # Format data for frontend consumption
+        rows = []
+        for row in raw_rows:
+            formatted_row = format_funding_row(row)
+            rows.append(formatted_row)
 
         # Remove relevance_score from results if it exists (used only for sorting)
         if search_query and search_query.strip():
@@ -167,7 +231,7 @@ def bulk_save_funding_data():
             if funding_uuid is None:
                 continue
 
-            cur.execute("SELECT 1 FROM funding WHERE funding_uuid = ? LIMIT 1;", (funding_uuid,))
+            cur.execute("SELECT 1 FROM funding WHERE funding_uuid = %s LIMIT 1;", (funding_uuid,))
             if cur.fetchone() is None:
                 new_records.append(rec)
                 
@@ -218,7 +282,7 @@ def check_updates_to_funding_data():
             if funding_uuid is None:
                 continue
 
-            cur.execute("SELECT 1 FROM funding WHERE funding_uuid = ? LIMIT 1;", (funding_uuid,))
+            cur.execute("SELECT 1 FROM funding WHERE funding_uuid = %s LIMIT 1;", (funding_uuid,))
             if cur.fetchone() is None:
                 new_records.append(rec)
 

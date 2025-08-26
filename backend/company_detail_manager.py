@@ -1,7 +1,6 @@
 """company_detail_manager.py – helpers for the `company_details` table."""
 from __future__ import annotations
 
-import sqlite3
 from typing import List, Dict, Any, Optional
 
 INSERT_SQL = """
@@ -23,13 +22,13 @@ INSERT INTO company_details (
     key_risks_open_questions,
     sources
 ) VALUES (
-    ?,?,?,?,?,?,?,?,?,?,
-    ?,?,?,?,?,?
+    %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+    %s,%s,%s,%s,%s,%s
 );
 """
 
 def single_insert(
-    conn: sqlite3.Connection,
+    conn,
     detail: Dict[str, Any],
     name_to_uuid: Dict[str, int],
     company_name: str
@@ -63,8 +62,9 @@ def single_insert(
         detail.get("Sources")
     )
 
-    with conn:
-        conn.execute(INSERT_SQL, row)
+    with conn.cursor() as cur:
+        cur.execute(INSERT_SQL, row)
+    conn.commit()
 
     return {
         "funding_uuid": funding_uuid,
@@ -86,7 +86,7 @@ def single_insert(
     }
 
 def bulk_insert(
-    conn: sqlite3.Connection,
+    conn,
     details_list: List[Dict[str, Any]],
     name_to_uuid: Dict[str, int],
 ) -> int:
@@ -131,50 +131,51 @@ def bulk_insert(
     if not rows:
         return 0
 
-    with conn:
-        conn.executemany(INSERT_SQL, rows)
+    with conn.cursor() as cur:
+        cur.executemany(INSERT_SQL, rows)
+    conn.commit()
 
     return len(rows)
 
 
-def fetch_details_by_funding_uuid(conn: sqlite3.Connection, funding_uuid: int) -> Dict[str, Any] | None:
+def fetch_details_by_funding_uuid(conn, funding_uuid: int) -> Dict[str, Any] | None:
     """Return company detail row for the given funding_uuid, or None if not found."""
     
     # Configure row factory for dict-like access
-    conn.row_factory = sqlite3.Row  # type: ignore[assignment]
+    # Using PostgreSQL's RealDictCursor, no need for row_factory
 
-    cur = conn.execute(
-        """
-        SELECT *
-          FROM company_details
-         WHERE funding_uuid = ?
-         LIMIT 1
-        """,
-        (funding_uuid,),
-    )
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT *
+              FROM company_details
+             WHERE funding_uuid = %s
+             LIMIT 1
+            """,
+            (funding_uuid,),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
 
-    row = cur.fetchone()
-    return dict(row) if row else None
 
-
-def get_company_name_by_funding_uuid(conn: sqlite3.Connection, funding_uuid: int) -> str | None:
+def get_company_name_by_funding_uuid(conn, funding_uuid: int) -> str | None:
     """Get company name from funding table by funding_uuid."""
     
-    cur = conn.execute(
-        """
-        SELECT company_name
-          FROM funding
-         WHERE funding_uuid = ?
-         LIMIT 1
-        """,
-        (funding_uuid,),
-    )
-    
-    row = cur.fetchone()
-    return row[0] if row else None
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT company_name
+              FROM funding
+             WHERE funding_uuid = %s
+             LIMIT 1
+            """,
+            (funding_uuid,),
+        )
+        row = cur.fetchone()
+        return row['company_name'] if row else None
 
 
-def store_company_details(conn: sqlite3.Connection, funding_uuid: int, company_name: str, details: Dict[str, Any]) -> bool:
+def store_company_details(conn, funding_uuid: int, company_name: str, details: Dict[str, Any]) -> bool:
     """Store company details in the database with current timestamp."""
     
     from datetime import datetime
