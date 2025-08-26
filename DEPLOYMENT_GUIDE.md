@@ -3,7 +3,7 @@
 ## 📋 Overview
 
 This guide will help you deploy your BizDaily application for **FREE** using:
-- **Backend (FastAPI)**: Railway.app (Free tier: 500 hours/month, SQLite database)  
+- **Backend (FastAPI)**: Railway.app (Free tier: 500 hours/month, PostgreSQL database)  
 - **Frontend (React)**: Vercel (Unlimited free deployments)
 
 ## 🎯 Step 1: Prepare Backend for Deployment
@@ -33,6 +33,9 @@ restartPolicyMaxRetries = 10
 ```env
 # OpenAI API (required for LLM features)
 OPENAI_API_KEY=your_openai_api_key
+
+# PostgreSQL Database (required)
+DATABASE_URL=postgresql://username:password@host:port/database
 
 # App settings
 PORT=8000
@@ -68,17 +71,21 @@ async def health_check():
     return {"status": "healthy"}
 ```
 
-### D. SQLite Database Persistence
+### D. PostgreSQL Database Setup
 
-Your application uses **SQLite** which stores data in a single file (`funding_data.db`). For production deployment:
+Your application uses **PostgreSQL** as its primary database. This provides excellent performance, concurrent access, and reliability.
 
-**Important Notes:**
-- ✅ **SQLite works perfectly** on Railway with persistent storage
-- ✅ **No additional database setup** required
-- ✅ **Data persists** across deployments (Railway provides persistent disk)
-- ⚠️ **Single-writer limitation**: SQLite handles your concurrent reads well, but multiple writers require careful management
+**Why PostgreSQL:**
+- ✅ **Excellent concurrency** - handles 100+ concurrent users efficiently
+- ✅ **Production-grade reliability** with ACID compliance
+- ✅ **Advanced features** like indexes, constraints, and JSON support
+- ✅ **Scales horizontally** when needed
+- ✅ **Free PostgreSQL service** included with Railway
 
-**Your current setup is production-ready!** The optimized thread pools and async patterns you have will handle 100+ concurrent users effectively with SQLite.
+**Your application will automatically:**
+- 🔌 **Connect to PostgreSQL** when `DATABASE_URL` is provided
+- 🏗️ **Create all tables** on first startup
+- 🔄 **Handle connection pooling** efficiently
 
 ## 🎯 Step 2: Deploy Backend to Railway
 
@@ -95,18 +102,33 @@ Your application uses **SQLite** which stores data in a single file (`funding_da
 3. Choose your `BizDaily` repository
 4. Select the `/backend` folder as root directory
 
-### C. Add environment variables
+### C. Add PostgreSQL Database
 
-In Railway dashboard:
-1. Go to "Variables" tab
-2. Add:
-   - `OPENAI_API_KEY=your_key` (required for LLM features)
+1. **In your Railway project, click "New Service"**
+2. **Select "Database" → "PostgreSQL"**
+3. **Railway creates PostgreSQL service automatically**
+
+### D. Configure Backend Service
+
+1. **Click on your backend service** (not the PostgreSQL service)
+2. **Go to "Variables" tab**
+3. **Add these environment variables:**
+   - `OPENAI_API_KEY=your_openai_api_key` (required for LLM features)
    - `ALLOWED_ORIGINS=https://your-frontend-app.vercel.app` (update with your actual Vercel URL)
    - `ENVIRONMENT=production`
-   
-**Note**: `PORT` is automatically set by Railway, and SQLite database file is automatically persisted.
+   - `DATABASE_URL=` Copy this from your PostgreSQL service (Variables tab)
 
-### D. Deploy
+### E. Link PostgreSQL to Backend
+
+1. **Click your PostgreSQL service**
+2. **Go to "Variables" tab**
+3. **Copy the `DATABASE_URL` value**
+4. **Go back to your backend service → "Variables" tab**
+5. **Add `DATABASE_URL` with the copied PostgreSQL connection string**
+
+**Note**: `PORT` is automatically set by Railway. Your app will automatically detect PostgreSQL and create tables on startup.
+
+### F. Deploy
 
 Railway will automatically detect FastAPI and deploy your backend!
 
@@ -174,7 +196,7 @@ Redeploy your backend on Railway.
 ### Railway (Backend)
 - ✅ 500 execution hours/month
 - ✅ 1GB RAM, 1 CPU
-- ✅ Persistent disk storage for SQLite (1GB)
+- ✅ Free PostgreSQL database (1GB storage)
 - ✅ Custom domains
 
 ### Vercel (Frontend)
@@ -211,7 +233,7 @@ Both Railway and Vercel will automatically redeploy on every git push!
 ## 🔗 Final Architecture
 
 ```
-User → Vercel (React Frontend) → Railway (FastAPI Backend) → SQLite Database File
+User → Vercel (React Frontend) → Railway (FastAPI Backend) → PostgreSQL Database
 ```
 
 **Total Cost: $0/month** 🎉
@@ -223,4 +245,4 @@ Your backend is now **production-ready** with:
 - ✅ **Async LLM operations** with OpenAI for non-blocking AI requests
 - ✅ **Parallel company processing** for faster daily brief generation
 - ✅ **Optimized thread pools** for database and external API calls
-- ✅ **SQLite optimization** for high-concurrency read operations
+- ✅ **PostgreSQL optimization** for excellent concurrent access and reliability
