@@ -1,0 +1,7 @@
+# Rename this file to .env.production and update the URL
+
+# Production API URL - Update this with your Railway backend URL
+REACT_APP_API_BASE_URL=https://your-backend-app.railway.app
+
+# Environment
+NODE_ENV=production

@@ -1,0 +1,14 @@
+# Rename this file to .env and fill in your values
+
+# Database
+DATABASE_URL=postgresql://user:pass@host:port/dbname
+
+# OpenAI API (if you're using it)
+OPENAI_API_KEY=your_openai_api_key_here
+
+# App settings
+PORT=8000
+ENVIRONMENT=production
+
+# CORS Origins (comma-separated)
+ALLOWED_ORIGINS=https://your-frontend-app.vercel.app,http://localhost:3000

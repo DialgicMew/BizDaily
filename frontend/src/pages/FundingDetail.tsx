@@ -23,6 +23,7 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MenuIcon from '@mui/icons-material/Menu';
+import { API_ENDPOINTS } from '../config/constants';
 
 // Styled components matching home page design
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -232,7 +233,7 @@ interface CompanyDetails {
 
 // API service for company details
 const fetchCompanyDetails = async (fundingUuid: string): Promise<CompanyDetails> => {
-  const response = await fetch(`http://localhost:8000/api/company/company-details/${fundingUuid}`);
+  const response = await fetch(`${API_ENDPOINTS.COMPANY_DETAILS}/${fundingUuid}`);
   
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);

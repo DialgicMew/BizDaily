@@ -1,3 +1,5 @@
+import os
+from typing import List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -14,9 +16,22 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# Configure CORS origins
+def get_cors_origins() -> List[str]:
+    """Get CORS origins from environment variable or use defaults."""
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
+    if allowed_origins:
+        origins = [origin.strip() for origin in allowed_origins.split(",")]
+    else:
+        # Default origins for development
+        origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    
+    print(f"🌐 CORS Origins: {origins}")
+    return origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # React dev server
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -24,6 +24,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import MenuIcon from '@mui/icons-material/Menu';
+import { API_ENDPOINTS } from '../config/constants';
 
 // Styled components for notebook theme
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -505,7 +506,7 @@ const fetchDailyBrief = async (
   date: Date,
   generateIfMissing: boolean = true
 ): Promise<DailyBriefCompany[]> => {
-  const url = new URL('/api/brief/daily-brief', 'http://localhost:8000');
+  const url = new URL(API_ENDPOINTS.DAILY_BRIEF);
   url.search = new URLSearchParams({
     date: formatYMD(date),
     generate_if_missing: String(generateIfMissing),

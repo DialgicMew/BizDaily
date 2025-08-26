@@ -34,6 +34,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import MenuIcon from '@mui/icons-material/Menu';
+import { API_ENDPOINTS } from '../config/constants';
 
 // Styled components
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -271,7 +272,7 @@ const fetchFundingData = async (
     requestBody.search_query = searchQuery.trim();
   }
   
-  const response = await fetch('http://localhost:8000/api/funding/funding/filter', {
+  const response = await fetch(API_ENDPOINTS.FUNDING_FILTER, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -287,7 +288,7 @@ const fetchFundingData = async (
 };
 
 const refreshFundingData = async (): Promise<{message: string, status: string}> => {
-  const response = await fetch('http://localhost:8000/api/funding/funding/refresh', {
+  const response = await fetch(API_ENDPOINTS.FUNDING_REFRESH, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
