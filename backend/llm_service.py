@@ -17,12 +17,20 @@ _SOURCES_RE = re.compile(r"\*\*Sources:\*\*\s*(.*)")
 
 load_dotenv()
 
-# Use async HTTP client for better concurrency
-async_http_client = httpx.AsyncClient(timeout=60.0)
-async_client = AsyncOpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    http_client=async_http_client
-)
+# Initialize clients lazily to avoid startup issues
+async_http_client = None
+async_client = None
+
+def get_async_client():
+    """Get or create the async OpenAI client."""
+    global async_http_client, async_client
+    if async_client is None:
+        async_http_client = httpx.AsyncClient(timeout=60.0)
+        async_client = AsyncOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            http_client=async_http_client
+        )
+    return async_client
 
 
 def _split_funding_line(line: str):
@@ -149,7 +157,8 @@ FORMATTING RULES
     if force_web_search:
         request_params["tool_choice"] = {"type": "web_search_preview"}
 
-    response = await async_client.responses.create(**request_params)
+    client = get_async_client()
+    response = await client.responses.create(**request_params)
 
     print(response)
 

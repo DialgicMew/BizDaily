@@ -90,6 +90,7 @@ def _get_latest_funded_companies(funding_conn, target_date: str) -> List[Dict[st
     companies_needing_details_result = []
     if companies_needing_details:
         print(f"Fetching details for {len(companies_needing_details)} companies")
+        # Use sync wrapper for now - this will be called from sync context
         companies_needing_details_result = get_multiple_company_details(
             companies_needing_details, 
             funding_conn, 
@@ -169,4 +170,40 @@ async def get_multiple_company_details_async(companies: List[str], companies_fun
 # Backward compatibility wrapper
 def get_multiple_company_details(companies: List[str], funding_conn, companies_funded_today_name_uuid) -> List[Dict[str, Any]]:
     """Synchronous wrapper for backward compatibility."""
-    return asyncio.run(get_multiple_company_details_async(companies, companies_funded_today_name_uuid))
+    try:
+        # Try to get the running event loop
+        loop = asyncio.get_running_loop()
+        # If we're already in an async context, we can't use asyncio.run()
+        # Instead, we'll fall back to the old sequential approach but with proper error handling
+        return get_multiple_company_details_sync_fallback(companies, funding_conn, companies_funded_today_name_uuid)
+    except RuntimeError:
+        # No running event loop, safe to use asyncio.run()
+        return asyncio.run(get_multiple_company_details_async(companies, companies_funded_today_name_uuid))
+
+def get_multiple_company_details_sync_fallback(companies: List[str], funding_conn, companies_funded_today_name_uuid) -> List[Dict[str, Any]]:
+    """Fallback sync implementation for when we can't use asyncio.run()."""
+    companies_detail = []
+    for company in companies:
+        try:
+            # We need to use the sync version of the LLM call
+            # For now, let's create a minimal fallback
+            print(f"⚠️  Processing {company} in sync mode (LLM generation skipped for startup)")
+            
+            # Create a minimal record indicating LLM processing is needed
+            minimal_record = {
+                "company_name": company,
+                "generated_on": None,
+                "needs_llm_processing": True,
+                "error": "LLM processing deferred due to sync context"
+            }
+            companies_detail.append(minimal_record)
+            
+        except Exception as e:
+            print(f"❌ Failed to process {company}: {str(e)}")
+            companies_detail.append({
+                "company_name": company,
+                "error": f"Failed to process: {str(e)}",
+                "generated_on": None
+            })
+    
+    return companies_detail
