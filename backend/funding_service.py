@@ -57,12 +57,12 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
         
         # Build base queries with search relevance scoring
         if search_query and search_query.strip():
-            # Build relevance score SQL for sorting
+            # Build relevance score SQL for sorting - CASE INSENSITIVE
             relevance_parts = []
-            search_term = f"%{search_query.strip()}%"
+            search_term = f"%{search_query.strip().lower()}%"
             
             for field in search_fields:
-                relevance_parts.append(f"CASE WHEN {field} LIKE %s THEN 1 ELSE 0 END")
+                relevance_parts.append(f"CASE WHEN LOWER({field}) LIKE %s THEN 1 ELSE 0 END")
             
             relevance_sql = " + ".join(relevance_parts)
             sql = f"SELECT *, ({relevance_sql}) AS relevance_score FROM funding"
@@ -91,22 +91,26 @@ def fetch_funding_data_filter(filters: Optional[List[Tuple[str, List[str]]]] = N
             else:
                 valid_cols = set()
 
+        # IMPORTANT: Add relevance score parameters FIRST (for SELECT clause)
+        if search_query and search_query.strip():
+            search_term = f"%{search_query.strip().lower()}%"
+            # Add relevance score parameters for main query FIRST
+            for _ in search_fields:
+                params.append(search_term)
+
         # Build WHERE clauses
         where_clauses = []
         
         # Add search conditions
         if search_query and search_query.strip():
-            search_term = f"%{search_query.strip()}%"
+            search_term = f"%{search_query.strip().lower()}%"
             search_conditions = []
             
             for field in search_fields:
-                search_conditions.append(f"{field} LIKE %s")
-                params.append(search_term)
+                # Case insensitive search
+                search_conditions.append(f"LOWER({field}) LIKE %s")
+                params.append(search_term)  # Add WHERE clause parameters AFTER relevance
                 count_params.append(search_term)
-            
-            # Add relevance score parameters for main query
-            for _ in search_fields:
-                params.append(search_term)
             
             where_clauses.append(f"({' OR '.join(search_conditions)})")
 
