@@ -532,50 +532,50 @@ const Home: React.FC = () => {
   }, [searchParams, tableState, isMobile]);
   
   // Update page size when device type changes (mobile/desktop) or viewport size changes
-  useEffect(() => {
-    const calculateAndUpdatePageSize = () => {
-      const optimalPageSize = getOptimalPageSize(isMobile);
-      if (tableState.pageSize !== optimalPageSize) {
-        setTableState(prevState => ({
-          ...prevState,
-          pageSize: optimalPageSize,
-          page: 1 // Reset to first page when changing page size
-        }));
-      }
-    };
+  // useEffect(() => {
+  //   const calculateAndUpdatePageSize = () => {
+  //     const optimalPageSize = getOptimalPageSize(isMobile);
+  //     if (tableState.pageSize !== optimalPageSize) {
+  //       setTableState(prevState => ({
+  //         ...prevState,
+  //         pageSize: optimalPageSize,
+  //         page: 1 // Reset to first page when changing page size
+  //       }));
+  //     }
+  //   };
 
-    // Initial calculation
-    calculateAndUpdatePageSize();
+  //   // Initial calculation
+  //   calculateAndUpdatePageSize();
 
-    // Debounced resize handler to avoid excessive calculations
-    let resizeTimeout: NodeJS.Timeout;
-    const handleResize = () => {
-      if (isMobile) {
-        // Clear previous timeout
-        clearTimeout(resizeTimeout);
-        // Set new timeout to debounce rapid resize events
-        resizeTimeout = setTimeout(() => {
-          calculateAndUpdatePageSize();
-        }, 150); // 150ms delay to debounce
-      }
-    };
+  //   // Debounced resize handler to avoid excessive calculations
+  //   let resizeTimeout: NodeJS.Timeout;
+  //   const handleResize = () => {
+  //     if (isMobile) {
+  //       // Clear previous timeout
+  //       clearTimeout(resizeTimeout);
+  //       // Set new timeout to debounce rapid resize events
+  //       resizeTimeout = setTimeout(() => {
+  //         calculateAndUpdatePageSize();
+  //       }, 150); // 150ms delay to debounce
+  //     }
+  //   };
 
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', () => {
-      // For orientation change, add small delay to ensure viewport has updated
-      setTimeout(handleResize, 300);
-    });
+  //   window.addEventListener('resize', handleResize);
+  //   window.addEventListener('orientationchange', () => {
+  //     // For orientation change, add small delay to ensure viewport has updated
+  //     setTimeout(handleResize, 300);
+  //   });
 
-    return () => {
-      // Clean up event listeners
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-      // Clean up any pending timeout
-      if (resizeTimeout) {
-        clearTimeout(resizeTimeout);
-      }
-    };
-  }, [isMobile, tableState.pageSize]);
+  //   return () => {
+  //     // Clean up event listeners
+  //     window.removeEventListener('resize', handleResize);
+  //     window.removeEventListener('orientationchange', handleResize);
+  //     // Clean up any pending timeout
+  //     if (resizeTimeout) {
+  //       clearTimeout(resizeTimeout);
+  //     }
+  //   };
+  // }, [isMobile, tableState.pageSize]);
   
   // Update URL and localStorage when table state changes
   const updateTableState = (newState: Partial<TableState>) => {
