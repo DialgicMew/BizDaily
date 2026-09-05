@@ -6,9 +6,8 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=4010,
-        reload=True,
+        reload=True,  # uvicorn always runs a single worker under reload — "workers" is silently ignored
         log_level="info",
-        workers=4,  # Multiple worker processes
         loop="asyncio",  # Use asyncio event loop
         http="httptools",  # Faster HTTP parser
         ws="websockets",  # WebSocket support

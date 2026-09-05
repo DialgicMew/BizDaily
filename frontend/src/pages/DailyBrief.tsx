@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -293,7 +293,11 @@ const formatYMD = (d: Date): string => {
   return `${y}-${m}-${day}`;
 };
 
-const fetchDailyBrief = async (date: Date, generateIfMissing: boolean = true): Promise<DailyBriefCompany[]> => {
+const fetchDailyBrief = async (
+  date: Date,
+  generateIfMissing: boolean = true,
+  signal?: AbortSignal
+): Promise<DailyBriefCompany[]> => {
   const url = new URL(API_ENDPOINTS.DAILY_BRIEF);
   url.search = new URLSearchParams({
     date: formatYMD(date),
@@ -303,6 +307,7 @@ const fetchDailyBrief = async (date: Date, generateIfMissing: boolean = true): P
   const response = await fetch(url.toString(), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
+    signal,
   });
 
   if (!response.ok) {
@@ -326,47 +331,66 @@ const DailyBrief: React.FC = () => {
   const [companies, setCompanies] = useState<DailyBriefCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isFetchingRef = useRef(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const lastReqIdRef = useRef(0);
 
-  const loadDailyBrief = useCallback(async () => {
-    if (isFetchingRef.current) return;
-    isFetchingRef.current = true;
+  // Switching dates while a generation is still in flight (LLM calls can take
+  // a while) must cancel the stale request — otherwise it can resolve after a
+  // newer one and either get silently swallowed (leaving the UI stuck on the
+  // loading animation forever) or overwrite the newer date's data.
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+    let timedOut = false;
 
-    const reqId = ++lastReqIdRef.current; // track the latest request
+    // LLM generation for several companies can legitimately take a while, but
+    // it shouldn't spin forever if the backend is actually stuck or down.
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 120000);
 
-    try {
-      setLoading(true);
-      setError(null);
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      const data = await fetchDailyBrief(selectedDate);
+        const data = await fetchDailyBrief(selectedDate, true, controller.signal);
+        if (!cancelled) {
+          setCompanies(data);
+        }
+      } catch (err) {
+        if (cancelled) return;
 
-      if (reqId === lastReqIdRef.current) {
-        setCompanies(data);
-      }
-    } catch (err) {
-      if (reqId === lastReqIdRef.current) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          if (timedOut) {
+            setError('This is taking longer than expected. The brief may still be generating in the background — try again in a bit.');
+          }
+          return;
+        }
+
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch daily brief';
-
         if (errorMessage.includes('No brief found for the given date')) {
           setError(null);
           setCompanies([]);
         } else {
           setError(errorMessage);
         }
+      } finally {
+        clearTimeout(timeoutId);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    } finally {
-      if (reqId === lastReqIdRef.current) {
-        setLoading(false);
-      }
-      isFetchingRef.current = false;
-    }
-  }, [selectedDate]);
+    };
 
-  useEffect(() => {
-    loadDailyBrief();
-  }, [loadDailyBrief]);
+    load();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [selectedDate]);
 
   const handleBack = () => {
     navigate('/');

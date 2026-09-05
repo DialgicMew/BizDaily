@@ -12,9 +12,34 @@ To stop: Press Ctrl+C and both services will be terminated gracefully.
 import os
 import sys
 import signal
+import socket
 import subprocess
 import time
 from pathlib import Path
+
+BACKEND_PORT = 4010
+FRONTEND_PORT = 4011
+
+
+def port_owner(port):
+    """Return a short description of whatever is already listening on `port`, or None if it's free."""
+    try:
+        result = subprocess.run(
+            ["lsof", "-iTCP", f":{port}", "-sTCP:LISTEN", "-n", "-P"],
+            capture_output=True, text=True, timeout=3
+        )
+        lines = [l for l in result.stdout.splitlines()[1:] if l.strip()]
+        if lines:
+            parts = lines[0].split()
+            return f"PID {parts[1]} ({parts[0]})"
+    except Exception:
+        pass
+    # Fall back to a plain socket probe if lsof isn't available
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if s.connect_ex(("127.0.0.1", port)) == 0:
+            return "an unknown process"
+    return None
+
 
 class BizDailyRunner:
     def __init__(self):
@@ -35,14 +60,30 @@ class BizDailyRunner:
     def start_backend(self):
         """Start the backend server."""
         backend_dir = self.base_dir / "backend"
-        venv_python = backend_dir / "venv_new" / "bin" / "python"
-        
-        if not venv_python.exists():
-            print(f"❌ Virtual environment not found at {venv_python}")
-            print("   Please create a virtual environment first:")
-            print(f"   cd {backend_dir} && python -m venv venv_new")
+
+        owner = port_owner(BACKEND_PORT)
+        if owner:
+            print(f"❌ Port {BACKEND_PORT} is already in use by {owner}.")
+            print(f"   Stop whatever's using it (or free port {BACKEND_PORT}) and try again.")
             return False
-        
+
+        venv_python = None
+        for venv_name in ("venv", ".venv", "venv_new"):
+            candidate = backend_dir / venv_name / "bin" / "python"
+            if candidate.exists():
+                venv_python = candidate
+                break
+
+        if venv_python is None:
+            print(f"❌ No virtual environment found in {backend_dir}")
+            print("   Please create one first:")
+            print(f"   cd {backend_dir} && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt")
+            return False
+
+        if not (backend_dir / ".env").exists():
+            print(f"⚠️  No .env found in {backend_dir} — copy backend/.env.example to backend/.env and fill in")
+            print("   OPENAI_API_KEY and DATABASE_URL first, or the backend will fail to start.")
+
         try:
             print(f"🚀 Starting backend server from {backend_dir}...")
             self.backend_process = subprocess.Popen(
@@ -51,7 +92,8 @@ class BizDailyRunner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
-                bufsize=1
+                bufsize=1,
+                start_new_session=True,  # own process group, so we can kill its child processes too
             )
             return True
         except Exception as e:
@@ -61,16 +103,27 @@ class BizDailyRunner:
     def start_frontend(self):
         """Start the frontend development server."""
         frontend_dir = self.base_dir / "frontend"
+
+        owner = port_owner(FRONTEND_PORT)
+        if owner:
+            print(f"❌ Port {FRONTEND_PORT} is already in use by {owner}.")
+            print(f"   Stop whatever's using it (or free port {FRONTEND_PORT}) and try again.")
+            return False
+
         try:
             print(f"🎨 Starting frontend server from {frontend_dir}...")
             self.frontend_process = subprocess.Popen(
                 ["npm", "start"],
                 cwd=str(frontend_dir),
-                env={**os.environ, "PORT": "4011"},
+                env={**os.environ, "PORT": str(FRONTEND_PORT)},
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
-                bufsize=1
+                bufsize=1,
+                # npm forks the actual react-scripts/node process as a child of itself;
+                # without its own process group, killing "npm" leaves that child running
+                # and squatting on port 4011 the next time this script runs.
+                start_new_session=True,
             )
             return True
         except Exception as e:
@@ -88,16 +141,21 @@ class BizDailyRunner:
             if process and process.poll() is None:  # Process is still running
                 print(f"🔄 Stopping {name}...")
                 try:
-                    process.terminate()
-                    # Wait up to 5 seconds for graceful shutdown
+                    # Signal the whole process group (see start_new_session above),
+                    # not just the direct child — npm/uvicorn both spawn children of
+                    # their own that terminate() alone would otherwise orphan.
+                    pgid = os.getpgid(process.pid)
                     try:
+                        os.killpg(pgid, signal.SIGTERM)
                         process.wait(timeout=5)
                         print(f"✅ {name} stopped gracefully")
                     except subprocess.TimeoutExpired:
                         print(f"⚠️  {name} didn't stop gracefully, forcing...")
-                        process.kill()
+                        os.killpg(pgid, signal.SIGKILL)
                         process.wait()
                         print(f"✅ {name} force-stopped")
+                except ProcessLookupError:
+                    pass  # already gone
                 except Exception as e:
                     print(f"❌ Error stopping {name}: {e}")
     
@@ -154,33 +212,33 @@ class BizDailyRunner:
         
         
         # Start backend
-        print("\n🔄 Step 2: Starting backend server...")
+        print("\n🔄 Step 1: Starting backend server...")
         if not self.start_backend():
             print("❌ Failed to start backend. Exiting.")
             return
-        
+
         # Wait a moment for backend to initialize
         time.sleep(2)
-        print("✅ Step 2 Complete: Backend server started")
-        
+        print("✅ Step 1 Complete: Backend server started")
+
         # Start frontend
-        print("\n🔄 Step 3: Starting frontend server...")
+        print("\n🔄 Step 2: Starting frontend server...")
         if not self.start_frontend():
             print("❌ Failed to start frontend. Stopping backend...")
             self.stop_all()
             return
-        
+
         # Wait a moment for frontend to initialize
         time.sleep(3)
-        print("✅ Step 3 Complete: Frontend server started")
+        print("✅ Step 2 Complete: Frontend server started")
         
         print("\n✅ Both services started successfully!")
-        print("🌐 Backend running at: http://localhost:4010")
-        print("🎨 Frontend running at: http://localhost:4011")
+        print(f"🌐 Backend running at: http://localhost:{BACKEND_PORT}")
+        print(f"🎨 Frontend running at: http://localhost:{FRONTEND_PORT}")
         print("\n🔍 Application URLs:")
-        print("   - Main App: http://localhost:4011")
-        print("   - Daily Brief: http://localhost:4011/daily-brief")
-        print("   - API Docs: http://localhost:4010/docs")
+        print(f"   - Main App: http://localhost:{FRONTEND_PORT}")
+        print(f"   - Daily Brief: http://localhost:{FRONTEND_PORT}/daily-brief")
+        print(f"   - API Docs: http://localhost:{BACKEND_PORT}/docs")
         
         # Monitor processes
         self.monitor_processes()

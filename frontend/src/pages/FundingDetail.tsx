@@ -18,6 +18,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { API_ENDPOINTS } from '../config/constants';
 import { AppHeader } from '../components/AppHeader';
 import { formatContent, formatFieldQuestion } from '../utils/textFormat';
+import { getTagColor } from '../utils/tagColor';
 
 const BackButton = styled(Button)(({ theme }) => ({
   padding: '8px 24px',
@@ -320,8 +321,9 @@ const FundingDetail: React.FC = () => {
               <Chip
                 label={fundingData.funding_type}
                 sx={{
-                  backgroundColor: '#e8f0fe',
-                  color: 'primary.dark',
+                  backgroundColor: getTagColor(fundingData.funding_type).bg,
+                  color: getTagColor(fundingData.funding_type).color,
+                  fontWeight: 600,
                   mb: 2,
                   [theme.breakpoints.down('md')]: { fontSize: '0.75rem', height: '24px' },
                 }}
@@ -352,8 +354,9 @@ const FundingDetail: React.FC = () => {
               <Chip
                 label={fundingData.funding_stage}
                 sx={{
-                  backgroundColor: '#f3e8fd',
-                  color: '#7c3aed',
+                  backgroundColor: getTagColor(fundingData.funding_stage).bg,
+                  color: getTagColor(fundingData.funding_stage).color,
+                  fontWeight: 600,
                   mb: 2,
                   [theme.breakpoints.down('md')]: { fontSize: '0.75rem', height: '24px' },
                 }}
@@ -369,7 +372,20 @@ const FundingDetail: React.FC = () => {
               }}
             >
               <DataLabel>Sector</DataLabel>
-              <DataValue>{fundingData.sector || 'N/A'}</DataValue>
+              {fundingData.sector ? (
+                <Chip
+                  label={fundingData.sector}
+                  sx={{
+                    backgroundColor: getTagColor(fundingData.sector).bg,
+                    color: getTagColor(fundingData.sector).color,
+                    fontWeight: 600,
+                    mb: 2,
+                    [theme.breakpoints.down('md')]: { fontSize: '0.75rem', height: '24px' },
+                  }}
+                />
+              ) : (
+                <DataValue>N/A</DataValue>
+              )}
 
               <DataLabel>Sub Sector</DataLabel>
               <DataValue>{fundingData.sub_sector || 'N/A'}</DataValue>

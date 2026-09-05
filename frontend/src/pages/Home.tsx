@@ -3,12 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Paper,
   Pagination,
   CircularProgress,
@@ -28,8 +22,10 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import { API_ENDPOINTS } from '../config/constants';
 import { AppHeader } from '../components/AppHeader';
+import { getTagColor } from '../utils/tagColor';
 
 // Styled components
 const DailyBriefButton = styled(Button)(({ theme }) => ({
@@ -104,39 +100,35 @@ const RefreshButton = styled(Button)(({ theme }) => ({
   },
 }));
 
-const StyledTableContainer = styled(TableContainer)(() => ({
-  maxHeight: 'calc(100vh - 200px)', // Leave space for navbar and pagination
-  overflow: 'auto',
-}));
-
-const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  fontWeight: 600,
-  backgroundColor: '#f5f6f8',
-  borderBottom: `2px solid ${theme.palette.divider}`,
-  whiteSpace: 'nowrap',
-  minWidth: '120px',
-}));
-
-const StyledTableRow = styled(TableRow)(() => ({
-  '&:nth-of-type(even)': {
-    backgroundColor: '#fafafa',
-  },
-  '&:hover': {
-    backgroundColor: '#f0f4ff',
-    cursor: 'pointer',
-  },
-}));
-
-const MobileCard = styled(Paper)(({ theme }) => ({
-  borderRadius: 10,
+// Single card design used at every breakpoint — a responsive grid reflows it
+// from one column on phones to several on desktop, instead of swapping to a
+// completely different (and much plainer) table layout on larger screens.
+const FundingCard = styled(Paper)(({ theme }) => ({
+  borderRadius: 12,
   border: `1px solid ${theme.palette.divider}`,
-  padding: '12px 14px',
-  marginBottom: '8px',
-  boxShadow: 'none',
+  padding: '16px 18px',
+  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
   cursor: 'pointer',
-  transition: 'background-color 0.15s ease',
+  minWidth: 0, // grid items default to min-width:auto, which lets nowrap content force the track wider than the container
+  overflow: 'hidden',
+  transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease',
+  '&:hover': {
+    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.1)',
+    borderColor: theme.palette.primary.light,
+    transform: 'translateY(-2px)',
+  },
   '&:active': {
-    backgroundColor: '#f0f4ff',
+    transform: 'translateY(0)',
+  },
+}));
+
+const CardGrid = styled(Box)(({ theme }) => ({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+  gap: '12px',
+  [theme.breakpoints.down('sm')]: {
+    gridTemplateColumns: '1fr',
+    gap: '10px',
   },
 }));
 
@@ -170,32 +162,12 @@ interface ApiResponse {
   page_size: number;
 }
 
-// Column definitions (funding_uuid excluded from display but used internally)
-const columns = [
-  'company_name',
-  'company_location',
-  'funding_date',
-  'funding_type',
-  'funding_amount',
-  'currency',
-  'sector',
-  'sub_sector',
-  'funding_stage',
-  'funded_city',
-  'funded_state',
-  'funding_name',
-  'investment_stage',
-  'investor_count',
-  'total_investor_count',
-  'investor_names',
-  'article_url',
-];
-
 // API service
 const fetchFundingData = async (
   page: number,
   pageSize: number = 20,
-  searchQuery?: string
+  searchQuery?: string,
+  signal?: AbortSignal
 ): Promise<ApiResponse> => {
   const requestBody: any = {
     page: page - 1, // API uses 0-based indexing
@@ -210,6 +182,7 @@ const fetchFundingData = async (
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody),
+    signal,
   });
 
   if (!response.ok) {
@@ -232,41 +205,18 @@ const refreshFundingData = async (): Promise<{ message: string; status: string }
   return response.json();
 };
 
-// Format cell values for display
-const formatCellValue = (value: any, column: string): string | React.ReactNode => {
-  if (value === null || value === undefined || value === '') {
-    return '-';
-  }
-
-  switch (column) {
-    case 'funding_amount':
-      return value === 0 ? 'Undisclosed' : `$${(value / 1000000).toFixed(1)}M`;
-    case 'funding_date':
-      return new Date(value).toLocaleDateString();
-    case 'article_url':
-      return value ? (
-        <Link
-          href={value}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          sx={{ color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
-        >
-          View Article
-        </Link>
-      ) : (
-        '-'
-      );
-    case 'investor_names':
-      return value && value.length > 60 ? `${value.substring(0, 60)}...` : value || '-';
-    case 'funding_name':
-      return value && value.length > 40 ? `${value.substring(0, 40)}...` : value || '-';
-    default:
-      return String(value);
-  }
+const formatAmount = (value: any, currency?: string): string => {
+  if (value === null || value === undefined || value === '') return 'Undisclosed';
+  const amount = Number(value);
+  if (amount === 0) return 'Undisclosed';
+  return `${currency || '$'} ${(amount / 1000000).toFixed(1)}M`;
 };
 
-// Table state interface for future extensibility
+const formatDate = (value: any): string => {
+  if (!value) return '-';
+  return new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
 interface TableState {
   page: number;
   pageSize: number;
@@ -275,18 +225,8 @@ interface TableState {
   orderBy?: Array<{ field: string; direction: 'asc' | 'desc' }>;
 }
 
-// Local storage key for state persistence
 const TABLE_STATE_KEY = 'bizDaily_table_state';
-
-// Helper function to calculate optimal page size based on screen dimensions
-const getOptimalPageSize = (isMobile: boolean): number => {
-  if (!isMobile) {
-    return 10; // Desktop default
-  }
-
-  // Mobile: a card list, not a fixed-height table, so a flat sensible default works well
-  return 15;
-};
+const DEFAULT_PAGE_SIZE = 12;
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -298,8 +238,6 @@ const Home: React.FC = () => {
 
   // Initialize state from URL params or localStorage
   const getInitialTableState = (): TableState => {
-    const optimalPageSize = getOptimalPageSize(isMobile);
-
     const urlPage = searchParams.get('page');
     const urlPageSize = searchParams.get('pageSize');
     const urlSearchQuery = searchParams.get('search');
@@ -319,7 +257,7 @@ const Home: React.FC = () => {
 
       return {
         page: parseInt(urlPage || '1', 10),
-        pageSize: parseInt(urlPageSize || optimalPageSize.toString(), 10),
+        pageSize: parseInt(urlPageSize || DEFAULT_PAGE_SIZE.toString(), 10),
         searchQuery: urlSearchQuery || undefined,
         filters,
         orderBy,
@@ -330,8 +268,9 @@ const Home: React.FC = () => {
     if (savedState) {
       try {
         const parsed = JSON.parse(savedState);
-        if (parsed.pageSize === 10 || parsed.pageSize === 25) {
-          parsed.pageSize = optimalPageSize;
+        // Migrate old per-device page sizes from before the unified card grid
+        if ([10, 15, 25].includes(parsed.pageSize)) {
+          parsed.pageSize = DEFAULT_PAGE_SIZE;
         }
         return parsed;
       } catch (e) {
@@ -341,7 +280,7 @@ const Home: React.FC = () => {
 
     return {
       page: 1,
-      pageSize: optimalPageSize,
+      pageSize: DEFAULT_PAGE_SIZE,
       searchQuery: undefined,
       filters: {},
       orderBy: [],
@@ -376,10 +315,9 @@ const Home: React.FC = () => {
         console.warn('Failed to parse URL parameters');
       }
 
-      const optimalPageSize = getOptimalPageSize(isMobile);
       const newState = {
         page: parseInt(urlPage || '1', 10),
-        pageSize: parseInt(urlPageSize || optimalPageSize.toString(), 10),
+        pageSize: parseInt(urlPageSize || DEFAULT_PAGE_SIZE.toString(), 10),
         searchQuery: urlSearchQuery || undefined,
         filters,
         orderBy,
@@ -389,7 +327,7 @@ const Home: React.FC = () => {
         setTableState(newState);
       }
     }
-  }, [searchParams, tableState, isMobile]);
+  }, [searchParams, tableState]);
 
   // Update URL and localStorage when table state changes
   const updateTableState = (newState: Partial<TableState>) => {
@@ -455,21 +393,34 @@ const Home: React.FC = () => {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
     const loadData = async () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetchFundingData(tableState.page, tableState.pageSize, tableState.searchQuery);
-        setData(response.data);
-        setTotal(response.total);
+        const response = await fetchFundingData(tableState.page, tableState.pageSize, tableState.searchQuery, controller.signal);
+        if (!cancelled) {
+          setData(response.data);
+          setTotal(response.total);
+        }
       } catch (err) {
+        if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) return;
         setError(err instanceof Error ? err.message : 'Failed to fetch data');
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     loadData();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [tableState.page, tableState.pageSize, tableState.searchQuery, tableState.filters, tableState.orderBy]);
 
   const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
@@ -535,10 +486,10 @@ const Home: React.FC = () => {
   return (
     <Box
       sx={{
-        height: '100vh',
+        minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        backgroundColor: 'background.default',
       }}
     >
       <AppHeader
@@ -551,7 +502,7 @@ const Home: React.FC = () => {
 
       {/* Mobile Search Bar Collapse */}
       <Collapse in={mobileSearchExpanded && isMobile}>
-        <Box sx={{ p: 2, borderTop: '1px solid #e0e0e0', backgroundColor: 'background.default' }}>
+        <Box sx={{ p: 2, borderTop: '1px solid #e0e0e0', backgroundColor: 'background.paper' }}>
           <SearchTextField
             size="small"
             placeholder="Search companies, investors, sectors..."
@@ -590,94 +541,106 @@ const Home: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           p: 3,
-          overflow: 'hidden',
-          [theme.breakpoints.down('md')]: {
-            p: 1,
-            overflow: 'auto',
-          },
+          maxWidth: '1400px',
+          width: '100%',
+          margin: '0 auto',
+          [theme.breakpoints.down('md')]: { p: 1.25 },
         }}
       >
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, py: 10 }}>
             <CircularProgress />
           </Box>
         ) : error ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, py: 10 }}>
             <Typography color="error">Error: {error}</Typography>
           </Box>
-        ) : isMobile ? (
-          /* Mobile: compact card list instead of a horizontally-scrolling table */
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
-            {data.map((row, index) => (
-              <MobileCard key={row.funding_uuid || index} onClick={(event) => handleRowClick(row, event)}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'text.primary' }} noWrap>
-                      {row.company_name || '-'}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }} noWrap>
-                      {row.company_location || row.funded_city || 'Location N/A'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'secondary.main' }}>
-                      {formatCellValue(row.funding_amount, 'funding_amount')}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
-                      {formatCellValue(row.funding_date, 'funding_date')}
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1, alignItems: 'center' }}>
-                  {row.funding_stage && (
-                    <Chip label={row.funding_stage} size="small" sx={{ backgroundColor: '#f3e8fd', color: '#7c3aed', fontSize: '0.68rem', height: '20px' }} />
-                  )}
-                  {row.sector && (
-                    <Chip label={row.sector} size="small" sx={{ backgroundColor: '#e8f0fe', color: 'primary.dark', fontSize: '0.68rem', height: '20px' }} />
-                  )}
-                  <ChevronRightIcon sx={{ ml: 'auto', color: 'text.secondary', fontSize: 18 }} />
-                </Box>
-              </MobileCard>
-            ))}
-            {data.length === 0 && (
-              <Typography sx={{ textAlign: 'center', color: 'text.secondary', py: 6 }}>No funding records found.</Typography>
-            )}
+        ) : data.length === 0 ? (
+          <Box sx={{ textAlign: 'center', color: 'text.secondary', py: 10 }}>
+            <Typography sx={{ fontSize: '1.1rem' }}>No funding records found.</Typography>
           </Box>
         ) : (
-          /* Desktop: full data table */
-          <Paper
-            sx={{
-              borderRadius: '12px',
-              boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
-              border: `1px solid ${theme.palette.divider}`,
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <StyledTableContainer sx={{ flex: 1, mb: 2 }}>
-              <Table stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    {columns.map((column) => (
-                      <StyledTableCell key={column}>{column.replace(/_/g, ' ').toUpperCase()}</StyledTableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {data.map((row, index) => (
-                    <StyledTableRow key={row.funding_uuid || index} onClick={(event) => handleRowClick(row, event)}>
-                      {columns.map((column) => (
-                        <TableCell key={column} sx={{ whiteSpace: 'nowrap', minWidth: '120px' }}>
-                          {formatCellValue(row[column], column)}
-                        </TableCell>
-                      ))}
-                    </StyledTableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </StyledTableContainer>
-          </Paper>
+          <CardGrid>
+            {data.map((row, index) => {
+              const stageColor = getTagColor(row.funding_stage);
+              const sectorColor = getTagColor(row.sector);
+              return (
+                <FundingCard key={row.funding_uuid || index} onClick={(event) => handleRowClick(row, event)}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1.5 }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: 'text.primary' }} noWrap>
+                        {row.company_name || '-'}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                        <LocationOnOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }} noWrap>
+                          {row.company_location || row.funded_city || 'Location N/A'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: 'secondary.main' }}>
+                        {formatAmount(row.funding_amount, row.currency)}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>{formatDate(row.funding_date)}</Typography>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mt: 1.25, alignItems: 'center' }}>
+                    {row.funding_stage && (
+                      <Chip
+                        label={row.funding_stage}
+                        size="small"
+                        sx={{ backgroundColor: stageColor.bg, color: stageColor.color, fontWeight: 600, fontSize: '0.68rem', height: '22px' }}
+                      />
+                    )}
+                    {row.sector && (
+                      <Chip
+                        label={row.sector}
+                        size="small"
+                        sx={{ backgroundColor: sectorColor.bg, color: sectorColor.color, fontWeight: 600, fontSize: '0.68rem', height: '22px' }}
+                      />
+                    )}
+                    <ChevronRightIcon sx={{ ml: 'auto', color: 'text.secondary', fontSize: 18 }} />
+                  </Box>
+
+                  {/* Extra detail shown only at wider breakpoints — same card, more room to use */}
+                  <Box sx={{ display: { xs: 'none', md: 'block' }, mt: 1 }}>
+                    {row.investor_names && (
+                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
+                        <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                          Investors:{' '}
+                        </Box>
+                        {row.investor_names.length > 90 ? `${row.investor_names.slice(0, 90)}…` : row.investor_names}
+                        {row.total_investor_count ? ` (${row.total_investor_count})` : ''}
+                      </Typography>
+                    )}
+                    {(row.sub_sector || row.funding_type) && (
+                      <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mt: 0.25 }}>
+                        {row.sub_sector && `${row.sub_sector}`}
+                        {row.sub_sector && row.funding_type ? ' · ' : ''}
+                        {row.funding_type}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  {row.article_url && (
+                    <Box sx={{ mt: 1 }}>
+                      <Link
+                        href={row.article_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        sx={{ fontSize: '0.75rem', color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                      >
+                        View Article
+                      </Link>
+                    </Box>
+                  )}
+                </FundingCard>
+              );
+            })}
+          </CardGrid>
         )}
 
         {/* Pagination */}
@@ -688,7 +651,6 @@ const Home: React.FC = () => {
             alignItems: 'center',
             py: 2,
             flexShrink: 0,
-            [theme.breakpoints.down('md')]: { py: 1 },
           }}
         >
           <Pagination

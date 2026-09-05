@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Dict, Any, Optional
 import asyncio
 from fastapi import FastAPI, HTTPException, Query
-from daily_brief_service import get_daily_brief, create_daily_brief
+from daily_brief_service import get_daily_brief
 import datetime as _dt
 import time
 app = FastAPI(title="Startup News – Daily Brief API")
