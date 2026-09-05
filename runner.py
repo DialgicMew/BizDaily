@@ -174,12 +174,12 @@ class BizDailyRunner:
         print("✅ Step 3 Complete: Frontend server started")
         
         print("\n✅ Both services started successfully!")
-        print("🌐 Backend running at: http://localhost:8000")
+        print("🌐 Backend running at: http://localhost:4010")
         print("🎨 Frontend running at: http://localhost:3000")
         print("\n🔍 Application URLs:")
         print("   - Main App: http://localhost:3000")
         print("   - Daily Brief: http://localhost:3000/daily-brief")
-        print("   - API Docs: http://localhost:8000/docs")
+        print("   - API Docs: http://localhost:4010/docs")
         
         # Monitor processes
         self.monitor_processes()

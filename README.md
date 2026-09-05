@@ -38,17 +38,17 @@ source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env          # then fill in OPENAI_API_KEY and DATABASE_URL
-python run.py                 # serves on http://localhost:8000
+python run.py                 # serves on http://localhost:4010
 ```
 
-Tables are created automatically on first startup. Visit `http://localhost:8000/docs` for interactive API docs.
+Tables are created automatically on first startup. Visit `http://localhost:4010/docs` for interactive API docs.
 
 ### 2. Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env          # defaults to http://localhost:8000, adjust if needed
+cp .env.example .env          # defaults to http://localhost:4010, adjust if needed
 npm start                     # serves on http://localhost:3000
 ```
 
@@ -57,7 +57,7 @@ npm start                     # serves on http://localhost:3000
 The funding table starts empty. Trigger a sync from Inc42 by hitting the refresh endpoint (or click **Refresh Data** in the UI once the frontend is running):
 
 ```bash
-curl -X POST http://localhost:8000/api/funding/funding/refresh
+curl -X POST http://localhost:4010/api/funding/funding/refresh
 ```
 
 This walks Inc42's paginated API and can take a while the first time. The Daily Brief page will generate company profiles on demand (via the LLM) the first time you view a given date.
