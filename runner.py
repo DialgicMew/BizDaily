@@ -66,6 +66,7 @@ class BizDailyRunner:
             self.frontend_process = subprocess.Popen(
                 ["npm", "start"],
                 cwd=str(frontend_dir),
+                env={**os.environ, "PORT": "4011"},
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
@@ -175,10 +176,10 @@ class BizDailyRunner:
         
         print("\n✅ Both services started successfully!")
         print("🌐 Backend running at: http://localhost:4010")
-        print("🎨 Frontend running at: http://localhost:3000")
+        print("🎨 Frontend running at: http://localhost:4011")
         print("\n🔍 Application URLs:")
-        print("   - Main App: http://localhost:3000")
-        print("   - Daily Brief: http://localhost:3000/daily-brief")
+        print("   - Main App: http://localhost:4011")
+        print("   - Daily Brief: http://localhost:4011/daily-brief")
         print("   - API Docs: http://localhost:4010/docs")
         
         # Monitor processes

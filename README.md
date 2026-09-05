@@ -49,7 +49,7 @@ Tables are created automatically on first startup. Visit `http://localhost:4010/
 cd frontend
 npm install
 cp .env.example .env          # defaults to http://localhost:4010, adjust if needed
-npm start                     # serves on http://localhost:3000
+npm start                     # serves on http://localhost:4011
 ```
 
 ### 3. Load some data

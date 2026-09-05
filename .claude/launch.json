@@ -5,7 +5,7 @@
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "start"],
-      "port": 3000
+      "port": 4011
     }
   ]
 }

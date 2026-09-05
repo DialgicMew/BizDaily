@@ -47,7 +47,7 @@ def get_cors_origins() -> List[str]:
         origins = [origin.strip() for origin in allowed_origins.split(",")]
     else:
         # Default origins for development
-        origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+        origins = ["http://localhost:4011", "http://127.0.0.1:4011"]
     
     print(f"🌐 CORS Origins: {origins}")
     return origins

@@ -23,7 +23,7 @@ This repo includes a [`render.yaml`](render.yaml) blueprint, so Render can confi
 3. Under the service's **Environment** tab, set:
    - `OPENAI_API_KEY` — your OpenAI key
    - `DATABASE_URL` — the Neon connection string from step 1
-   - `ALLOWED_ORIGINS` — leave a placeholder for now (e.g. `http://localhost:3000`); you'll update it after the frontend is deployed
+   - `ALLOWED_ORIGINS` — leave a placeholder for now (e.g. `http://localhost:4011`); you'll update it after the frontend is deployed
 4. Deploy. Once live, your backend URL will be something like `https://bizdaily-backend.onrender.com`. Confirm it's healthy: `curl https://bizdaily-backend.onrender.com/health`.
 
 No blueprint? You can create the web service manually instead: **Root Directory** `backend`, **Build Command** `pip install -r requirements.txt`, **Start Command** `uvicorn main:app --host 0.0.0.0 --port $PORT`, **Health Check Path** `/health`.
