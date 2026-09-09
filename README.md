@@ -1,6 +1,6 @@
 # BizDaily
 
-BizDaily tracks Indian startup funding news and turns it into a daily, readable brief. It pulls funding rounds from [Inc42](https://inc42.com)'s public data API, uses an LLM to research and summarize each newly-funded company (problem, solution, traction, founders, risks, sources), and serves it all through a searchable table and a "notebook"-style daily digest.
+BizDaily tracks Indian startup funding news and turns it into a daily, readable brief. It pulls funding rounds from public data API, uses an LLM to research and summarize each newly-funded company (problem, solution, traction, founders, risks, sources), and serves it all through a searchable table and a "notebook"-style daily digest.
 
 ## Features
 
